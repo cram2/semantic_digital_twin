@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from typing_extensions import MutableMapping, List, Dict
 
 import numpy as np
@@ -54,6 +56,7 @@ class WorldStateView:
         self.data[Derivatives.jerk] = value
 
 
+@dataclass
 class WorldState(MutableMapping):
     """
     Tracks the state of all DOF in the world.
@@ -63,18 +66,13 @@ class WorldState(MutableMapping):
     """
 
     # 4 rows (pos, vel, acc, jerk), columns are joints
-    data: np.ndarray
+    data: np.ndarray = field(default_factory=lambda: np.zeros((4, 0), dtype=float))
 
     # list of joint names in column order
-    _names: List[PrefixedName]
+    _names: List[PrefixedName] = field(default_factory=list)
 
     # maps joint_name -> column index
-    _index: Dict[PrefixedName, int]
-
-    def __init__(self):
-        self.data = np.zeros((4, 0), dtype=float)
-        self._names = []
-        self._index = {}
+    _index: Dict[PrefixedName, int] = field(default_factory=dict)
 
     def _add_dof(self, name: PrefixedName) -> None:
         idx = len(self._names)

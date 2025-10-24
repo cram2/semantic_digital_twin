@@ -1,11 +1,14 @@
 import os
 import unittest
 
+import numpy as np
 import sqlalchemy
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import RevoluteConnection
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import TransformationMatrix
@@ -41,6 +44,16 @@ class ORMTest(unittest.TestCase):
         self.session.close()
 
     def test_table_world(self):
+        revolute_connection = self.table_world.get_connections_by_type(
+            RevoluteConnection
+        )[0]
+        revolute_connection.position = 1
+        revolute_connection.velocity = 23
+        revolute_connection.acceleration = 42
+        revolute_connection.jerk = 69
+        fk = self.table_world.compute_forward_kinematics_np(
+            root=revolute_connection.parent, tip=revolute_connection.child
+        )
         world_dao: WorldMappingDAO = to_dao(self.table_world)
 
         self.session.add(world_dao)
@@ -55,7 +68,19 @@ class ORMTest(unittest.TestCase):
         self.assertEqual(len(connections_from_db), len(self.table_world.connections))
 
         queried_world = self.session.scalar(select(WorldMappingDAO))
-        reconstructed = queried_world.from_dao()
+        reconstructed: World = queried_world.from_dao()
+
+        fk2 = reconstructed.compute_forward_kinematics_np(
+            root=revolute_connection.parent, tip=revolute_connection.child
+        )
+        assert np.allclose(fk, fk2)
+        reconstructed_connection = reconstructed.get_connections_by_type(
+            RevoluteConnection
+        )[0]
+        assert reconstructed_connection.position == revolute_connection.position
+        assert reconstructed_connection.velocity == revolute_connection.velocity
+        assert reconstructed_connection.acceleration == revolute_connection.acceleration
+        assert reconstructed_connection.jerk == revolute_connection.jerk
 
     def test_insert(self):
         origin = TransformationMatrix.from_xyz_rpy(1, 2, 3, 1, 2, 3)

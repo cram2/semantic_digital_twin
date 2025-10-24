@@ -1,14 +1,14 @@
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing_extensions import List
-from typing_extensions import Optional
 
+import numpy as np
 import trimesh
 import trimesh.exchange.stl
 from ormatic.dao import AlternativeMapping
 from sqlalchemy import TypeDecorator, types
+from typing_extensions import List
+from typing_extensions import Optional
 
-from ..world_description.degree_of_freedom import DegreeOfFreedom
 from ..datastructures.prefixed_name import PrefixedName
 from ..spatial_types import RotationMatrix, Vector3, Point3, TransformationMatrix
 from ..spatial_types.derivatives import DerivativeMap
@@ -16,11 +16,12 @@ from ..spatial_types.spatial_types import Quaternion
 from ..spatial_types.symbol_manager import symbol_manager
 from ..world import World
 from ..world_description.connections import Connection
+from ..world_description.degree_of_freedom import DegreeOfFreedom
 from ..world_description.world_entity import (
     SemanticAnnotation,
     KinematicStructureEntity,
-    Body,
 )
+from ..world_description.world_state import WorldState
 
 
 @dataclass
@@ -29,17 +30,18 @@ class WorldMapping(AlternativeMapping[World]):
     connections: List[Connection]
     semantic_annotations: List[SemanticAnnotation]
     degrees_of_freedom: List[DegreeOfFreedom]
+    state: WorldState
     name: Optional[str] = field(default=None)
 
     @classmethod
     def create_instance(cls, obj: World):
-        # return cls(obj.bodies[:2], [],[],[], )
         return cls(
-            obj.kinematic_structure_entities,
-            obj.connections,
-            obj.semantic_annotations,
-            list(obj.degrees_of_freedom),
-            obj.name,
+            kinematic_structure_entities=obj.kinematic_structure_entities,
+            connections=obj.connections,
+            semantic_annotations=obj.semantic_annotations,
+            degrees_of_freedom=list(obj.degrees_of_freedom),
+            state=obj.state,
+            name=obj.name,
         )
 
     def create_from_dao(self) -> World:
@@ -60,8 +62,29 @@ class WorldMapping(AlternativeMapping[World]):
             for semantic_annotation in self.semantic_annotations:
                 result.add_semantic_annotation(semantic_annotation)
             result.delete_orphaned_dofs()
+            result.state = self.state
 
         return result
+
+
+@dataclass
+class WorldStateMapping(AlternativeMapping[WorldState]):
+    data: List[float]
+    names: List[PrefixedName]
+
+    @classmethod
+    def create_instance(cls, obj: WorldState):
+        return cls(
+            data=obj.data.ravel().tolist(),
+            names=obj._names,
+        )
+
+    def create_from_dao(self) -> WorldState:
+        return WorldState(
+            data=np.array(self.data, dtype=np.float64).reshape((4, len(self.names))),
+            _names=self.names,
+            _index={name: idx for idx, name in enumerate(self.names)},
+        )
 
 
 @dataclass
