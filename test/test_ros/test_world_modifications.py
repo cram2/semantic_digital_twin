@@ -21,7 +21,7 @@ from semantic_digital_twin.world_description.world_modification import (
     AddKinematicStructureEntityModification,
     AddConnectionModification,
     AddDegreeOfFreedomModification,
-    AddSemanticSnnotationModification,
+    AddSemanticAnnotationModification,
     RemoveSemanticAnnotationModification,
 )
 
@@ -141,8 +141,8 @@ class ConnectionModificationTestCase(unittest.TestCase):
         v1 = Handle(body=b1)
         v2 = Door(body=b1, handle=v1)
 
-        add_v1 = AddSemanticSnnotationModification(v1)
-        add_v2 = AddSemanticSnnotationModification(v2)
+        add_v1 = AddSemanticAnnotationModification(v1)
+        add_v2 = AddSemanticAnnotationModification(v2)
 
         self.assertNotIn(v1, w.semantic_annotations)
         self.assertNotIn(v2, w.semantic_annotations)

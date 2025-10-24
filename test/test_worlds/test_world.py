@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 import pytest
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.world_description.connections import (
@@ -17,6 +18,7 @@ from semantic_digital_twin.exceptions import (
     SemanticAnnotationNotFoundError,
     DuplicateKinematicStructureEntityError,
     UsageError,
+    MissingWorldModificationContextError,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives, DerivativeMap
@@ -363,7 +365,8 @@ def test_compute_relative_pose_only_rotation(world_setup):
 def test_add_semantic_annotation(world_setup):
     world, l1, l2, bf, r1, r2 = world_setup
     v = SemanticAnnotation(name=PrefixedName("muh"))
-    world.add_semantic_annotation(v)
+    with world.modify_world():
+        world.add_semantic_annotation(v)
     with pytest.raises(AddingAnExistingSemanticAnnotationError):
         world.add_semantic_annotation(v, exists_ok=False)
     assert world.get_semantic_annotation_by_name(v.name) == v
@@ -372,8 +375,9 @@ def test_add_semantic_annotation(world_setup):
 def test_duplicate_semantic_annotation(world_setup):
     world, l1, l2, bf, r1, r2 = world_setup
     v = SemanticAnnotation(name=PrefixedName("muh"))
-    world.add_semantic_annotation(v)
-    world.semantic_annotations.append(v)
+    with world.modify_world():
+        world.add_semantic_annotation(v)
+        world.semantic_annotations.append(v)
     with pytest.raises(DuplicateSemanticAnnotationError):
         world.get_semantic_annotation_by_name(v.name)
 
@@ -807,3 +811,9 @@ def test_overwrite_dof_limits_mimic(world_setup):
         mimic_connection.dof.lower_limits.jerk, (new_limits * -1).jerk * 2
     )
     assert np.isclose(mimic_connection.dof.upper_limits.jerk, new_limits.jerk * 2)
+
+
+def test_missing_world_modification_context(world_setup):
+    world, l1, l2, bf, r1, r2 = world_setup
+    with pytest.raises(MissingWorldModificationContextError):
+        world.add_semantic_annotation(Handle(l1))

@@ -1,9 +1,13 @@
 import json
+
+from std_srvs.srv import Trigger
+
 from semantic_digital_twin.adapters.ros.world_fetcher import (
     FetchWorldServer,
     fetch_world_from_service,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Door
 from semantic_digital_twin.testing import rclpy_node
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import Connection6DoF
@@ -11,8 +15,6 @@ from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.world_description.world_modification import (
     WorldModelModificationBlock,
 )
-
-from std_srvs.srv import Trigger
 
 
 def create_dummy_world():
@@ -112,3 +114,25 @@ def test_world_fetching(rclpy_node):
         rclpy_node,
     )
     assert world2._model_modification_blocks == world._model_modification_blocks
+
+
+def test_semantic_annotation_modifications(rclpy_node):
+    w1 = World(name="w1")
+    b1 = Body(name=PrefixedName("b1"))
+    v1 = Handle(body=b1)
+    v2 = Door(body=b1, handle=v1)
+
+    with w1.modify_world():
+        w1.add_body(b1)
+        w1.add_semantic_annotation(v1)
+        w1.add_semantic_annotation(v2)
+
+    fetcher = FetchWorldServer(node=rclpy_node, world=w1)
+
+    w2 = fetch_world_from_service(
+        rclpy_node,
+    )
+
+    assert [sa.name for sa in w1.semantic_annotations] == [
+        sa.name for sa in w2.semantic_annotations
+    ]

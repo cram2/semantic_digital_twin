@@ -17,6 +17,9 @@ import rustworkx.visualization
 from itertools import combinations_with_replacement
 from lxml import etree
 from rustworkx import NoEdgeBetweenNodes
+from semantic_digital_twin.world_description.world_modification import (
+    RemoveSemanticAnnotationModification,
+)
 from typing_extensions import (
     Dict,
     Tuple,
@@ -41,6 +44,7 @@ from .exceptions import (
     SemanticAnnotationNotFoundError,
     AlreadyBelongsToAWorldError,
     DuplicateKinematicStructureEntityError,
+    MissingWorldModificationContextError,
 )
 from .robots.abstract_robot import AbstractRobot
 from .spatial_computations.forward_kinematics import ForwardKinematicsVisitor
@@ -79,6 +83,7 @@ from .world_description.world_modification import (
     RemoveConnectionModification,
     WorldModelModificationBlock,
     SetDofHasHardwareInterface,
+    AddSemanticAnnotationModification,
 )
 from .world_description.world_state import WorldState
 
@@ -214,6 +219,8 @@ def atomic_world_modification(
             # Build a dict with all arguments (including positional), excluding 'self'
             bound_args = dict(bound.arguments)
             bound_args.pop("self", None)
+            if self._current_model_modification_block is None:
+                raise MissingWorldModificationContextError(func)
             self._current_model_modification_block.append(
                 modification.from_kwargs(bound_args)
             )
@@ -433,7 +440,6 @@ class World:
         in the system.
 
         :param dof: The degree of freedom to be added to the system.
-        :type dof: DegreeOfFreedom
         :return: None
         """
         dof._world = self
@@ -716,8 +722,15 @@ class World:
             if not exists_ok:
                 raise AddingAnExistingSemanticAnnotationError(semantic_annotation)
         except SemanticAnnotationNotFoundError:
-            semantic_annotation._world = self
-            self.semantic_annotations.append(semantic_annotation)
+            self._add_semantic_annotation(semantic_annotation)
+
+    @atomic_world_modification(modification=AddSemanticAnnotationModification)
+    def _add_semantic_annotation(self, semantic_annotation: SemanticAnnotation):
+        """
+        The atomic method that adds a semantic annotation to the current list of semantic annotations.
+        """
+        semantic_annotation._world = self
+        self.semantic_annotations.append(semantic_annotation)
 
     def remove_semantic_annotation(
         self, semantic_annotation: SemanticAnnotation
@@ -732,8 +745,7 @@ class World:
                 semantic_annotation.name
             )
             if existing_semantic_annotation == semantic_annotation:
-                self.semantic_annotations.remove(existing_semantic_annotation)
-                semantic_annotation._world = None
+                self._remove_semantic_annotation(semantic_annotation)
             else:
                 raise ValueError(
                     "The provided semantic annotation instance does not match the existing semantic annotation with the same name."
@@ -742,6 +754,14 @@ class World:
             logger.debug(
                 f"semantic annotation {semantic_annotation.name} not found in the world. No action taken."
             )
+
+    @atomic_world_modification(modification=RemoveSemanticAnnotationModification)
+    def _remove_semantic_annotation(self, semantic_annotation: SemanticAnnotation):
+        """
+        The atomic method that removes a semantic annotation from the current list of semantic annotations.
+        """
+        self.semantic_annotations.remove(semantic_annotation)
+        semantic_annotation._world = None
 
     def get_connections_of_branch(
         self, root: KinematicStructureEntity

@@ -1053,24 +1053,25 @@ class DresserFactory(
         Create a world with a dresser semantic annotation that contains a container, drawers, and doors, but no interior yet.
         """
         dresser_world = self.container_factory.create()
-        semantic_container_annotation: Container = (
-            dresser_world.get_semantic_annotations_by_type(Container)[0]
-        )
+        with dresser_world.modify_world():
+            semantic_container_annotation: Container = (
+                dresser_world.get_semantic_annotations_by_type(Container)[0]
+            )
 
-        self.add_doorlike_semantic_annotation_to_world(dresser_world)
+            self.add_doorlike_semantic_annotation_to_world(dresser_world)
 
-        self.add_drawers_to_world(dresser_world)
+            self.add_drawers_to_world(dresser_world)
 
-        semantic_dresser_annotation = Dresser(
-            name=self.name,
-            container=semantic_container_annotation,
-            drawers=dresser_world.get_semantic_annotations_by_type(Drawer),
-            doors=dresser_world.get_semantic_annotations_by_type(Door),
-        )
-        dresser_world.add_semantic_annotation(
-            semantic_dresser_annotation, exists_ok=True
-        )
-        dresser_world.name = self.name.name
+            semantic_dresser_annotation = Dresser(
+                name=self.name,
+                container=semantic_container_annotation,
+                drawers=dresser_world.get_semantic_annotations_by_type(Drawer),
+                doors=dresser_world.get_semantic_annotations_by_type(Door),
+            )
+            dresser_world.add_semantic_annotation(
+                semantic_dresser_annotation, exists_ok=True
+            )
+            dresser_world.name = self.name.name
 
         return dresser_world
 
@@ -1216,19 +1217,20 @@ class WallFactory(SemanticAnnotationFactory[Wall], HasDoorLikeFactories):
 
     def _create_wall_world(self) -> World:
         wall_world = World()
-        wall_body = Body(name=self.name)
-        wall_collision = self._create_wall_collision(wall_body)
-        wall_body.collision = wall_collision
-        wall_body.visual = wall_collision
         with wall_world.modify_world():
-            wall_world.add_kinematic_structure_entity(wall_body)
+            wall_body = Body(name=self.name)
+            wall_collision = self._create_wall_collision(wall_body)
+            wall_body.collision = wall_collision
+            wall_body.visual = wall_collision
+            with wall_world.modify_world():
+                wall_world.add_kinematic_structure_entity(wall_body)
 
-        wall = Wall(
-            name=self.name,
-            body=wall_body,
-        )
+            wall = Wall(
+                name=self.name,
+                body=wall_body,
+            )
 
-        wall_world.add_semantic_annotation(wall)
+            wall_world.add_semantic_annotation(wall)
 
         return wall_world
 

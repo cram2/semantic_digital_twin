@@ -5,6 +5,7 @@ from typing import Optional
 
 import sqlalchemy
 from ormatic.utils import drop_database
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Door
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -342,6 +343,34 @@ def test_ChangeDifHasHardwareInterface(rclpy_node):
 
     synchronizer_1.close()
     synchronizer_2.close()
+
+
+def test_semantic_annotation_modifications(rclpy_node):
+    w1 = World(name="w1")
+    w2 = World(name="w2")
+
+    synchronizer_1 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w1,
+    )
+    synchronizer_2 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w2,
+    )
+
+    b1 = Body(name=PrefixedName("b1"))
+    v1 = Handle(body=b1)
+    v2 = Door(body=b1, handle=v1)
+
+    with w1.modify_world():
+        w1.add_body(b1)
+        w1.add_semantic_annotation(v1)
+        w1.add_semantic_annotation(v2)
+
+    time.sleep(0.2)
+    assert [sa.name for sa in w1.semantic_annotations] == [
+        sa.name for sa in w2.semantic_annotations
+    ]
 
 
 if __name__ == "__main__":

@@ -55,7 +55,8 @@ Next, we create a semantic annotation that describes the table.
 
 ```{code-cell} ipython2
 table_semantic_annotation = Table([b for b in world.bodies if "top" in str(b.name)][0])
-world.add_semantic_annotation(table_semantic_annotation)
+with world.modify_world():
+    world.add_semantic_annotation(table_semantic_annotation)
 print(table_semantic_annotation)
 ```
 

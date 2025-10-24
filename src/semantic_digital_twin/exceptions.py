@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Tuple, Union
 
-from typing_extensions import Optional, List, Type, TYPE_CHECKING
+from typing_extensions import Optional, List, Type, TYPE_CHECKING, Callable
 
 from .datastructures.prefixed_name import PrefixedName
 
@@ -35,6 +35,15 @@ class AddingAnExistingSemanticAnnotationError(UsageError):
 
     def __post_init__(self):
         msg = f"Semantic annotation {self.semantic_annotation} already exists."
+        super().__init__(msg)
+
+
+@dataclass
+class MissingWorldModificationContextError(UsageError):
+    function: Callable
+
+    def __post_init__(self):
+        msg = f"World function '{self.function.__name__}' was called without a 'with world.modify_world():' context manager."
         super().__init__(msg)
 
 

@@ -257,7 +257,7 @@ class RemoveDegreeOfFreedomModification(WorldModelModification):
 
 
 @dataclass
-class AddSemanticSnnotationModification(WorldModelModification):
+class AddSemanticAnnotationModification(WorldModelModification):
     semantic_annotation: SemanticAnnotation
 
     @classmethod
