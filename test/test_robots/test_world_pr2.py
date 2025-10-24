@@ -237,8 +237,8 @@ def test_apply_control_commands_omni_drive_pr2(pr2_world):
         PrefixedName("odom_combined_T_base_footprint")
     )
     cmd = np.zeros((len(pr2_world.degrees_of_freedom)), dtype=float)
-    cmd[pr2_world.state._index[omni_drive.x_vel.name]] = 100
-    cmd[pr2_world.state._index[omni_drive.y_vel.name]] = 100
+    cmd[pr2_world.state._index[omni_drive.x_velocity.name]] = 100
+    cmd[pr2_world.state._index[omni_drive.y_velocity.name]] = 100
     cmd[pr2_world.state._index[omni_drive.yaw.name]] = 100
     dt = 0.1
     pr2_world.apply_control_commands(cmd, dt, Derivatives.jerk)
@@ -247,15 +247,15 @@ def test_apply_control_commands_omni_drive_pr2(pr2_world):
     assert pr2_world.state[omni_drive.yaw.name].velocity == 100.0 * dt * dt
     assert pr2_world.state[omni_drive.yaw.name].position == 100.0 * dt * dt * dt
 
-    assert pr2_world.state[omni_drive.x_vel.name].jerk == 100.0
-    assert pr2_world.state[omni_drive.x_vel.name].acceleration == 100.0 * dt
-    assert pr2_world.state[omni_drive.x_vel.name].velocity == 100.0 * dt * dt
-    assert pr2_world.state[omni_drive.x_vel.name].position == 0
+    assert pr2_world.state[omni_drive.x_velocity.name].jerk == 100.0
+    assert pr2_world.state[omni_drive.x_velocity.name].acceleration == 100.0 * dt
+    assert pr2_world.state[omni_drive.x_velocity.name].velocity == 100.0 * dt * dt
+    assert pr2_world.state[omni_drive.x_velocity.name].position == 0
 
-    assert pr2_world.state[omni_drive.y_vel.name].jerk == 100.0
-    assert pr2_world.state[omni_drive.y_vel.name].acceleration == 100.0 * dt
-    assert pr2_world.state[omni_drive.y_vel.name].velocity == 100.0 * dt * dt
-    assert pr2_world.state[omni_drive.y_vel.name].position == 0
+    assert pr2_world.state[omni_drive.y_velocity.name].jerk == 100.0
+    assert pr2_world.state[omni_drive.y_velocity.name].acceleration == 100.0 * dt
+    assert pr2_world.state[omni_drive.y_velocity.name].velocity == 100.0 * dt * dt
+    assert pr2_world.state[omni_drive.y_velocity.name].position == 0
 
     assert pr2_world.state[omni_drive.x.name].jerk == 0.0
     assert pr2_world.state[omni_drive.x.name].acceleration == 0.0

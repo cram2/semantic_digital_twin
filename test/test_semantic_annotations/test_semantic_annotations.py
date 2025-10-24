@@ -70,7 +70,8 @@ class TestSemanticAnnotation(SemanticAnnotation):
 
 def test_semantic_annotation_hash(apartment_world):
     semantic_annotation1 = Handle(body=apartment_world.bodies[0])
-    apartment_world.add_semantic_annotation(semantic_annotation1)
+    with apartment_world.modify_world():
+        apartment_world.add_semantic_annotation(semantic_annotation1)
     assert hash(semantic_annotation1) == hash((Handle, apartment_world.bodies[0].name))
 
     semantic_annotation2 = Handle(body=apartment_world.bodies[0])
@@ -212,9 +213,9 @@ def test_semantic_annotation_serde_once(apartment_world):
 
     handle = Handle(body=handle_body)
     door = Door(body=door_body, handle=handle)
-
-    apartment_world.add_semantic_annotation(handle)
-    apartment_world.add_semantic_annotation(door)
+    with apartment_world.modify_world():
+        apartment_world.add_semantic_annotation(handle)
+        apartment_world.add_semantic_annotation(door)
 
     door_se = door.to_json()
     door_de = Door.from_json(door_se)
@@ -231,8 +232,9 @@ def test_semantic_annotation_serde_multiple(apartment_world):
     handle = Handle(body=handle_body)
     door = Door(body=door_body, handle=handle)
 
-    apartment_world.add_semantic_annotation(handle)
-    apartment_world.add_semantic_annotation(door)
+    with apartment_world.modify_world():
+        apartment_world.add_semantic_annotation(handle)
+        apartment_world.add_semantic_annotation(door)
 
     door_se1 = door.to_json()
     door_de1 = Door.from_json(door_se1)

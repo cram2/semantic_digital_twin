@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import operator
+from collections import Counter
 from enum import IntEnum
 
 import numpy as np
@@ -37,6 +38,7 @@ from ..exceptions import (
     NotSquareMatrixError,
     WrongDimensionsError,
     SpatialTypesError,
+    DuplicateSymbolsError,
 )
 
 if TYPE_CHECKING:
@@ -90,12 +92,7 @@ class CompiledFunction:
         if self.symbol_parameters is None:
             self.symbol_parameters = [self.expression.free_symbols()]
         else:
-            symbols = set()
-            for symbol_parameter in self.symbol_parameters:
-                symbols.update(set(symbol_parameter))
-            missing_symbols = set(self.expression.free_symbols()).difference(symbols)
-            if missing_symbols:
-                raise HasFreeSymbolsError(missing_symbols)
+            self._validate_symbols()
 
         if len(self.symbol_parameters) == 1 and len(self.symbol_parameters[0]) == 0:
             self.symbol_parameters = []
@@ -108,6 +105,30 @@ class CompiledFunction:
         self._setup_output_buffer()
         if len(self.symbol_parameters) == 0:
             self._setup_constant_result()
+
+    def _validate_symbols(self):
+        """Validates symbols for both missing and duplicate issues."""
+        symbols = []
+        for symbol_parameter in self.symbol_parameters:
+            symbols.extend(symbol_parameter)
+
+        symbols_set = set(symbols)
+
+        # Check for missing symbols
+        missing_symbols = set(self.expression.free_symbols()).difference(symbols_set)
+        if missing_symbols:
+            raise HasFreeSymbolsError(missing_symbols)
+
+        # Check for duplicate symbols
+        if len(symbols_set) != len(symbols):
+            symbol_counts = Counter(symbols)
+            all_duplicates = [
+                symbol
+                for symbol, count in symbol_counts.items()
+                if count > 1
+                for _ in range(count)
+            ]
+            raise DuplicateSymbolsError(all_duplicates)
 
     def _setup_empty_result(self) -> None:
         """

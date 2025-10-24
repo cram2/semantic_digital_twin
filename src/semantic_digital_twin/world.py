@@ -16,7 +16,11 @@ import rustworkx.visit
 import rustworkx.visualization
 from itertools import combinations_with_replacement
 from lxml import etree
+from random_events.utils import SubclassJSONSerializer
 from rustworkx import NoEdgeBetweenNodes
+from semantic_digital_twin.world_description.world_modification import (
+    RemoveSemanticAnnotationModification,
+)
 from typing_extensions import (
     Dict,
     Tuple,
@@ -41,6 +45,7 @@ from .exceptions import (
     SemanticAnnotationNotFoundError,
     AlreadyBelongsToAWorldError,
     DuplicateKinematicStructureEntityError,
+    MissingWorldModificationContextError,
 )
 from .robots.abstract_robot import AbstractRobot
 from .spatial_computations.forward_kinematics import ForwardKinematicsVisitor
@@ -49,7 +54,6 @@ from .spatial_computations.raytracer import RayTracer
 from .spatial_types import spatial_types as cas
 from .spatial_types.derivatives import Derivatives
 from .utils import IDGenerator, copy_lru_cache
-from .world_description.connection_factories import ConnectionFactory
 from .world_description.connections import (
     ActiveConnection,
     PassiveConnection,
@@ -79,6 +83,7 @@ from .world_description.world_modification import (
     RemoveConnectionModification,
     WorldModelModificationBlock,
     SetDofHasHardwareInterface,
+    AddSemanticAnnotationModification,
 )
 from .world_description.world_state import WorldState
 
@@ -214,6 +219,8 @@ def atomic_world_modification(
             # Build a dict with all arguments (including positional), excluding 'self'
             bound_args = dict(bound.arguments)
             bound_args.pop("self", None)
+            if self._current_model_modification_block is None:
+                raise MissingWorldModificationContextError(func)
             self._current_model_modification_block.append(
                 modification.from_kwargs(bound_args)
             )
@@ -433,7 +440,6 @@ class World:
         in the system.
 
         :param dof: The degree of freedom to be added to the system.
-        :type dof: DegreeOfFreedom
         :return: None
         """
         dof._world = self
@@ -681,7 +687,9 @@ class World:
             dof.has_hardware_interface = value
 
     def add_connection(
-        self, connection: Connection, handle_duplicates: bool = False
+        self,
+        connection: Connection,
+        handle_duplicates: bool = False,
     ) -> None:
         """
         Add a connection and the entities it connects to the world.
@@ -716,8 +724,15 @@ class World:
             if not exists_ok:
                 raise AddingAnExistingSemanticAnnotationError(semantic_annotation)
         except SemanticAnnotationNotFoundError:
-            semantic_annotation._world = self
-            self.semantic_annotations.append(semantic_annotation)
+            self._add_semantic_annotation(semantic_annotation)
+
+    @atomic_world_modification(modification=AddSemanticAnnotationModification)
+    def _add_semantic_annotation(self, semantic_annotation: SemanticAnnotation):
+        """
+        The atomic method that adds a semantic annotation to the current list of semantic annotations.
+        """
+        semantic_annotation._world = self
+        self.semantic_annotations.append(semantic_annotation)
 
     def remove_semantic_annotation(
         self, semantic_annotation: SemanticAnnotation
@@ -732,8 +747,7 @@ class World:
                 semantic_annotation.name
             )
             if existing_semantic_annotation == semantic_annotation:
-                self.semantic_annotations.remove(existing_semantic_annotation)
-                semantic_annotation._world = None
+                self._remove_semantic_annotation(semantic_annotation)
             else:
                 raise ValueError(
                     "The provided semantic annotation instance does not match the existing semantic annotation with the same name."
@@ -742,6 +756,14 @@ class World:
             logger.debug(
                 f"semantic annotation {semantic_annotation.name} not found in the world. No action taken."
             )
+
+    @atomic_world_modification(modification=RemoveSemanticAnnotationModification)
+    def _remove_semantic_annotation(self, semantic_annotation: SemanticAnnotation):
+        """
+        The atomic method that removes a semantic annotation from the current list of semantic annotations.
+        """
+        self.semantic_annotations.remove(semantic_annotation)
+        semantic_annotation._world = None
 
     def get_connections_of_branch(
         self, root: KinematicStructureEntity
@@ -991,8 +1013,8 @@ class World:
 
             connection = root_connection
             if not connection and self_root:
-                connection = Connection6DoF(
-                    parent=self_root, child=other_root, _world=self
+                connection = Connection6DoF.with_auto_generated_dofs(
+                    parent=self_root, child=other_root, world=self
                 )
 
             if connection:
@@ -1051,8 +1073,8 @@ class World:
         :param pose: world_root_T_other_root, the pose of the other world's root with respect to the current world's root
         """
         with self.modify_world():
-            root_connection = Connection6DoF(
-                parent=self.root, child=other.root, _world=self
+            root_connection = Connection6DoF.with_auto_generated_dofs(
+                parent=self.root, child=other.root, world=self
             )
             self.merge_world(other, root_connection)
             root_connection.origin = pose
@@ -1727,8 +1749,16 @@ class World:
                 new_world.add_degree_of_freedom(new_dof)
                 dof_mapping[dof] = new_dof
             for connection in self.connections:
-                con_factory = ConnectionFactory.from_connection(connection)
-                con_factory.create(new_world)
+                new_connection = SubclassJSONSerializer.from_json(connection.to_json())
+                new_connection.parent = (
+                    new_world.get_kinematic_structure_entity_by_name(
+                        new_connection.parent.name
+                    )
+                )
+                new_connection.child = new_world.get_kinematic_structure_entity_by_name(
+                    new_connection.child.name
+                )
+                new_world.add_connection(new_connection)
             for dof in self.degrees_of_freedom:
                 new_world.state[dof.name] = self.state[dof.name].data
         return new_world

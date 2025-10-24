@@ -62,7 +62,7 @@ table_top.collision = table_top_shapes
 table_top.visual = table_top_shapes
 
 with world.modify_world():
-    root_to_leg = Connection6DoF(parent=root, child=table_leg, _world=world)
+    root_to_leg = Connection6DoF.with_auto_generated_dofs(parent=root, child=table_leg, world=world)
     world.add_connection(root_to_leg)
 
     leg_to_top = FixedConnection(
@@ -71,7 +71,6 @@ with world.modify_world():
         parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
             z=0.3, reference_frame=table_leg
         ),
-        _world=world,
     )
     world.add_connection(leg_to_top)
 ```
@@ -97,7 +96,7 @@ We will now say the the region moves exactly as the table top moves.
 ```{code-cell} ipython2
 with world.modify_world():
     world.add_kinematic_structure_entity(table_surface)
-    connection = FixedConnection(table_top, table_surface, _world=world)
+    connection = FixedConnection(table_top, table_surface)
     world.add_connection(connection)
 print(world.regions)
 ```

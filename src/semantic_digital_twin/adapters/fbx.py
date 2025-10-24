@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 import fbxloader
 import numpy as np
@@ -12,8 +12,6 @@ from semantic_digital_twin.adapters.mesh import MeshParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     TransformationMatrix,
-    Point3,
-    RotationMatrix,
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
@@ -212,7 +210,6 @@ class FBXParser(MeshParser):
                     connection = FixedConnection(
                         parent=parent_body,
                         child=obj_body,
-                        _world=world,
                         parent_T_connection_expression=parent_T_child,
                     )
                     world.add_connection(connection)

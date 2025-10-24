@@ -5,6 +5,7 @@ from typing import Optional
 
 import sqlalchemy
 from ormatic.utils import drop_database
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Door
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,9 +24,9 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     Connection6DoF,
     FixedConnection,
-    ActiveConnection1DOF,
     PrismaticConnection,
 )
+from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 from semantic_digital_twin.world_description.world_entity import Body
 
 
@@ -35,9 +36,9 @@ def create_dummy_world(w: Optional[World] = None) -> World:
     b1 = Body(name=PrefixedName("b1"))
     b2 = Body(name=PrefixedName("b2"))
     with w.modify_world():
-        w.add_kinematic_structure_entity(b1)
-        w.add_kinematic_structure_entity(b2)
-        w.add_connection(Connection6DoF(b1, b2, _world=w))
+        w.add_connection(
+            Connection6DoF.with_auto_generated_dofs(parent=b1, child=b2, world=w)
+        )
     return w
 
 
@@ -184,7 +185,7 @@ def test_model_synchronization_creation_only(rclpy_node):
         new_body = Body(name=PrefixedName("b3"))
         w1.add_kinematic_structure_entity(new_body)
 
-        c = Connection6DoF(b2, new_body, _world=w1)
+        c = Connection6DoF.with_auto_generated_dofs(parent=b2, child=new_body, world=w1)
         w1.add_connection(c)
     time.sleep(0.1)
     assert len(w1.kinematic_structure_entities) == 2
@@ -276,7 +277,7 @@ def test_callback_pausing(rclpy_node):
         new_body = Body(name=PrefixedName("b3"))
         w1.add_kinematic_structure_entity(new_body)
 
-        c = Connection6DoF(b2, new_body, _world=w1)
+        c = Connection6DoF.with_auto_generated_dofs(parent=b2, child=new_body, world=w1)
         w1.add_connection(c)
 
     time.sleep(0.1)
@@ -317,8 +318,10 @@ def test_ChangeDifHasHardwareInterface(rclpy_node):
         body2 = Body(name=PrefixedName("b2"))
         w1.add_kinematic_structure_entity(body1)
         w1.add_kinematic_structure_entity(body2)
+        dof = DegreeOfFreedom(name=PrefixedName("dof"))
+        w1.add_degree_of_freedom(dof)
         connection = PrismaticConnection(
-            parent=body1, child=body2, _world=w1, axis=Vector3(1, 1, 1)
+            dof_name=dof.name, parent=body1, child=body2, axis=Vector3(1, 1, 1)
         )
         w1.add_connection(connection)
     assert len(w1.kinematic_structure_entities) == 2
@@ -342,6 +345,34 @@ def test_ChangeDifHasHardwareInterface(rclpy_node):
 
     synchronizer_1.close()
     synchronizer_2.close()
+
+
+def test_semantic_annotation_modifications(rclpy_node):
+    w1 = World(name="w1")
+    w2 = World(name="w2")
+
+    synchronizer_1 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w1,
+    )
+    synchronizer_2 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w2,
+    )
+
+    b1 = Body(name=PrefixedName("b1"))
+    v1 = Handle(body=b1)
+    v2 = Door(body=b1, handle=v1)
+
+    with w1.modify_world():
+        w1.add_body(b1)
+        w1.add_semantic_annotation(v1)
+        w1.add_semantic_annotation(v2)
+
+    time.sleep(0.2)
+    assert [sa.name for sa in w1.semantic_annotations] == [
+        sa.name for sa in w2.semantic_annotations
+    ]
 
 
 if __name__ == "__main__":

@@ -17,7 +17,6 @@ def test_post_init_transformation():
             FixedConnection(
                 parent=root,
                 child=b1,
-                _world=w,
                 parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=root
                 ),

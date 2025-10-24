@@ -53,7 +53,7 @@ from ..world_description.connections import (
 from ..world_description.degree_of_freedom import DegreeOfFreedom
 from ..world_description.geometry import Scale
 from ..world_description.shape_collection import BoundingBoxCollection, ShapeCollection
-from ..world_description.world_entity import Body, Region
+from ..world_description.world_entity import Body, Region, CollisionCheckingConfig
 
 id_generator = IDGenerator()
 
@@ -166,17 +166,19 @@ class HasDoorLikeFactories(ABC):
                 lower_limits=lower_limits,
                 upper_limits=upper_limits,
             )
-            connection = RevoluteConnection(
-                parent=parent_world.root,
-                child=root,
-                parent_T_connection_expression=parent_T_hinge,
-                multiplier=1.0,
-                offset=0.0,
-                axis=Vector3.Z(),
-                dof_name=dof.name,
-            )
+            with parent_world.modify_world():
+                parent_world.add_degree_of_freedom(dof)
+                connection = RevoluteConnection(
+                    parent=parent_world.root,
+                    child=root,
+                    parent_T_connection_expression=parent_T_hinge,
+                    multiplier=1.0,
+                    offset=0.0,
+                    axis=Vector3.Z(),
+                    dof_name=dof.name,
+                )
 
-            parent_world.merge_world(door_world, connection)
+                parent_world.merge_world(door_world, connection)
 
     def add_doorlike_semantic_annotation_to_world(
         self,
@@ -616,18 +618,19 @@ class HasDrawerFactories(ABC):
             lower_limits=lower_limits,
             upper_limits=upper_limits,
         )
+        with parent_world.modify_world():
+            parent_world.add_degree_of_freedom(dof)
+            connection = PrismaticConnection(
+                parent=parent_root,
+                child=child_root,
+                parent_T_connection_expression=parent_T_drawer,
+                multiplier=1.0,
+                offset=0.0,
+                axis=Vector3.X(),
+                dof_name=dof.name,
+            )
 
-        connection = PrismaticConnection(
-            parent=parent_root,
-            child=child_root,
-            parent_T_connection_expression=parent_T_drawer,
-            multiplier=1.0,
-            offset=0.0,
-            axis=Vector3.X(),
-            dof_name=dof.name,
-        )
-
-        parent_world.merge_world(drawer_world, connection)
+            parent_world.merge_world(drawer_world, connection)
 
     def add_drawers_to_world(self, parent_world: World):
         """
@@ -1053,24 +1056,25 @@ class DresserFactory(
         Create a world with a dresser semantic annotation that contains a container, drawers, and doors, but no interior yet.
         """
         dresser_world = self.container_factory.create()
-        semantic_container_annotation: Container = (
-            dresser_world.get_semantic_annotations_by_type(Container)[0]
-        )
+        with dresser_world.modify_world():
+            semantic_container_annotation: Container = (
+                dresser_world.get_semantic_annotations_by_type(Container)[0]
+            )
 
-        self.add_doorlike_semantic_annotation_to_world(dresser_world)
+            self.add_doorlike_semantic_annotation_to_world(dresser_world)
 
-        self.add_drawers_to_world(dresser_world)
+            self.add_drawers_to_world(dresser_world)
 
-        semantic_dresser_annotation = Dresser(
-            name=self.name,
-            container=semantic_container_annotation,
-            drawers=dresser_world.get_semantic_annotations_by_type(Drawer),
-            doors=dresser_world.get_semantic_annotations_by_type(Door),
-        )
-        dresser_world.add_semantic_annotation(
-            semantic_dresser_annotation, exists_ok=True
-        )
-        dresser_world.name = self.name.name
+            semantic_dresser_annotation = Dresser(
+                name=self.name,
+                container=semantic_container_annotation,
+                drawers=dresser_world.get_semantic_annotations_by_type(Drawer),
+                doors=dresser_world.get_semantic_annotations_by_type(Door),
+            )
+            dresser_world.add_semantic_annotation(
+                semantic_dresser_annotation, exists_ok=True
+            )
+            dresser_world.name = self.name.name
 
         return dresser_world
 
@@ -1216,19 +1220,20 @@ class WallFactory(SemanticAnnotationFactory[Wall], HasDoorLikeFactories):
 
     def _create_wall_world(self) -> World:
         wall_world = World()
-        wall_body = Body(name=self.name)
-        wall_collision = self._create_wall_collision(wall_body)
-        wall_body.collision = wall_collision
-        wall_body.visual = wall_collision
         with wall_world.modify_world():
-            wall_world.add_kinematic_structure_entity(wall_body)
+            wall_body = Body(name=self.name)
+            wall_collision = self._create_wall_collision(wall_body)
+            wall_body.collision = wall_collision
+            wall_body.visual = wall_collision
+            with wall_world.modify_world():
+                wall_world.add_kinematic_structure_entity(wall_body)
 
-        wall = Wall(
-            name=self.name,
-            body=wall_body,
-        )
+            wall = Wall(
+                name=self.name,
+                body=wall_body,
+            )
 
-        wall_world.add_semantic_annotation(wall)
+            wall_world.add_semantic_annotation(wall)
 
         return wall_world
 

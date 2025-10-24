@@ -123,7 +123,6 @@ def occluding_bodies(camera: Camera, body: Body) -> List[Body]:
         root_to_copied_body = FixedConnection(
             parent=root,
             child=copied_body,
-            _world=world_without_occlusion,
             parent_T_connection_expression=root_T_body,
         )
         world_without_occlusion.add_connection(root_to_copied_body)

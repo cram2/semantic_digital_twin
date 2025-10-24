@@ -41,7 +41,8 @@ class WorldReasoner:
 
         :return: The inferred semantic annotations of the world.
         """
-        result = self.reason()
+        with self.world.modify_world():
+            result = self.reason()
         return result.get("semantic_annotations", [])
 
     def reason(self) -> Dict[str, Any]:
