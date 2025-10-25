@@ -1,0 +1,4 @@
+jupyter-book
+jupytext
+nbconvert
+jupyterquiz

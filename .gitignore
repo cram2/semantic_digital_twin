@@ -7,5 +7,10 @@ _build
 build
 resources/procthor_environments
 examples/tmp
+examples/test_tmp
 test/file::memory:
 resources/fbx
+self_assessment/exercises/exercises_tmp
+self_assessment/exercises/test_tmp
+self_assessment/quizzes/test_tmp
+file::memory:

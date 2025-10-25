@@ -28,7 +28,7 @@ Used Concepts:
 
 First, let's create a simple table with one leg.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import TransformationMatrix
 from semantic_digital_twin.world import World
@@ -78,7 +78,7 @@ with world.modify_world():
 
 Next, we create a region describing the top of the table. We declare that the region is a very thin box that sits on top of the table-top.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 table_surface = Region(
     name=PrefixedName("supporting surface of table"),
 )
@@ -94,7 +94,7 @@ Regions are connected the same way bodies are connected.
 Hence, you can specify how the regions move w. r. t. to a body or even another region.
 We will now say the the region moves exactly as the table top moves.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with world.modify_world():
     world.add_kinematic_structure_entity(table_surface)
     connection = FixedConnection(table_top, table_surface, _world=world)
@@ -104,7 +104,7 @@ print(world.regions)
 
 We can now see that if we move the table, we also move the region.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 print(table_surface.global_pose.to_position().to_np()[:3])
 
 with world.modify_world():

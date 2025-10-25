@@ -22,12 +22,13 @@ jupytext --to notebook *.md
 The user guide is divided into multiple chapters teaching you the following topics:
 
 - Fundamental topics
+  - [](using-transformations)
+  - [](creating-custom-bodies)
   - [](loading-worlds)
   - [](visualizing-worlds)
-  - [](creating-custom-bodies)
+  - [](world-structure-manipulation)
   - [](semantic_annotations)
 - Advanced Topics
-  - [](world-structure-manipulation)
   - [](world-state-manipulation)
   - [](regions)
   - [](semantic_annotation_factories)

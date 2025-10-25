@@ -1,9 +1,9 @@
 #!/bin/bash
 source /opt/ros/jazzy/setup.bash
-# Determine the directory of this script and change to the examples directory relative to it
+# Determine the directory of this script and change to the quizzes directory relative to it
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLES_DIR="$(cd "$SCRIPT_DIR/../examples" && pwd)"
-cd "$EXAMPLES_DIR"
+QUIZZES_DIR="$(cd "$SCRIPT_DIR/../self_assessment/quizzes" && pwd)"
+cd "$QUIZZES_DIR"
 rm -rf test_tmp
 mkdir test_tmp
 jupytext --to notebook *.md

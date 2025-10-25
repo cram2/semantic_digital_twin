@@ -8,6 +8,7 @@ on:
   push:
     branches:
     - main
+    - student_exercises
 
     # If your git repository has the Jupyter Book within some-subfolder next to
     # unrelated files, you can make this run only if a file within that specific
@@ -59,6 +60,23 @@ jobs:
       with:
         path: doc/_build/.jupyter_cache
         key: jupyter-book-cache-${{ hashFiles('requirements.txt') }}
+
+    - name: Strip exercise-tagged cells in self_assessment/exercises/
+      run: |
+        cd /opt/ros/semantic_digital_twin/doc/self_assessment/exercises
+        source /opt/ros/semantic_digital_twin-venv/bin/activate
+        find . -type f -name '*.md' -print0 | while IFS= read -r -d '' f; do
+          ipynb="${f%.md}.ipynb"
+          # md:myst -> ipynb
+          jupytext --from md:myst --to ipynb "$f" -o "$ipynb"
+          # drop cells tagged "exercise"
+          jupyter nbconvert --config /opt/ros/semantic_digital_twin/scripts/configs/nb_remove_exercises.json \
+            --to notebook --inplace \
+            "$ipynb"
+          # ipynb -> md:myst (overwrite original .md)
+          jupytext --to md:myst "$ipynb" -o "$f"
+          rm -f "$ipynb"
+        done
 
     # Build the book
     - name: Build the book

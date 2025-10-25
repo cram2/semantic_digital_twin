@@ -25,7 +25,7 @@ Used Concepts:
 
 ## Create a drawer with a handle
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 from entity_query_language import entity, an, let, symbolic_mode
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -65,7 +65,7 @@ rt.scene.show("jupyter")
 
 You can query for components of the created furniture using EQL. For example, get all handles:
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with symbolic_mode():
     handles = an(entity(let(Handle, world.semantic_annotations)))
 print(*handles.evaluate(), sep="\n")
@@ -73,7 +73,7 @@ print(*handles.evaluate(), sep="\n")
 
 ## Add another handle and filter by context
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 # Create an extra handle world and merge it into the existing world at a different pose
 useless_handle_world = HandleFactory(name=PrefixedName("useless_handle")).create()
 print(useless_handle_world.semantic_annotations)
@@ -91,7 +91,7 @@ rt.scene.show("jupyter")
 
 With two handles in the world, the simple handle query yields multiple results:
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with symbolic_mode():
     handles = an(entity(let(Handle, world.semantic_annotations)))
 print(*handles.evaluate(), sep="\n")
@@ -99,7 +99,7 @@ print(*handles.evaluate(), sep="\n")
 
 We can refine the query to get only the handle that belongs to a drawer:
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with symbolic_mode():
     drawer = let(Drawer, world.semantic_annotations)
     handle = let(Handle, world.semantic_annotations)

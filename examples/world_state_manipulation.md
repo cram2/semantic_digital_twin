@@ -24,7 +24,7 @@ Concepts Used:
 
 First, we create a dresser containing a single drawer using the respective factories.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 import threading
 import time
 
@@ -85,7 +85,7 @@ rt.scene.show("jupyter")
 
 Let's get a reference to the drawer we built above.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with symbolic_mode():
     drawer = the(
         entity(
@@ -96,7 +96,7 @@ with symbolic_mode():
 
 We can update the drawer's state by altering the free variables position of its prismatic connection to the dresser.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 drawer.container.body.parent_connection.position = 0.1
 rt = RayTracer(world)
 rt.update_scene()
@@ -106,7 +106,7 @@ rt.scene.show("jupyter")
 Note that this only works in this simple way for connections that only have one degree of freedom. For multiple degrees of freedom you either have to set the entire transformation or use the world state directly.
 To show this we first create a new root for the world and make a free connection from the new root to the dresser.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 from semantic_digital_twin.world_description.connections import Connection6DoF, PrismaticConnection
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -129,7 +129,7 @@ rt.scene.show("jupyter")
 
 Now we can start moving the dresser everywhere and even rotate it.
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 from semantic_digital_twin.world_description.world_entity import Connection
 
 with symbolic_mode():
@@ -147,7 +147,7 @@ The state is an array of 4 values: the position, velocity, acceleration and jerk
 Since it is an aggregation of all degree of freedoms existing in the world, it can be messy to access.
 We can close the drawer again as follows:
 
-```{code-cell} ipython2
+```{code-cell} ipython3
 with symbolic_mode():
     connection = the(entity(connection := let(type_=PrismaticConnection, domain=world.connections), in_("drawer", connection.child.name.name))).evaluate()
 with world.modify_world():

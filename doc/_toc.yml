@@ -8,28 +8,31 @@ parts:
   chapters:
     - file: user_guide
       sections:
+        - file: examples/using_transformations
         - file: examples/creating_custom_bodies
         - file: examples/loading_worlds
         - file: examples/visualizing_worlds
-        - file: examples/views
-        - file: examples/world_state_manipulation
         - file: examples/world_structure_manipulation
+        - file: examples/semantic_annotations
+        - file: examples/world_state_manipulation
         - file: examples/regions
-        - file: examples/factories
+        - file: examples/semantic_annotation_factories
         - file: examples/persistence_of_annotated_worlds
+        - file: examples/graph_of_convex_sets
 - caption: Developer Guide
   chapters:
     - file: developer_guide
 - caption: Concepts
   chapters:
     - file: kinematic_world
-    - file: views
+    - file: semantic_annotaitons
     - file: world_reasoner
     - file: world_synchronization
     - file: style_guide
-- caption: Examples
+- caption: Self-Assessment
   chapters:
-    - file: examples/graph_of_convex_sets
+    - file: self_assessment/quizzes_intro
+    - file: self_assessment/exercises_intro
 - caption: References
   chapters:
     - file: autoapi/index

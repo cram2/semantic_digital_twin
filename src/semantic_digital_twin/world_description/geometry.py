@@ -12,8 +12,7 @@ import trimesh.exchange.stl
 from random_events.interval import SimpleInterval, Bound, closed
 from random_events.product_algebra import SimpleEvent
 from random_events.utils import SubclassJSONSerializer
-from typing_extensions import Optional, List, TYPE_CHECKING, Dict, Any
-from typing_extensions import Self
+from typing_extensions import Optional, List, TYPE_CHECKING, Dict, Any, Self, Tuple
 
 from ..datastructures.variables import SpatialVariables
 from ..spatial_types import TransformationMatrix, Point3
@@ -95,6 +94,9 @@ class Color(SubclassJSONSerializer):
     @classmethod
     def _from_json(cls, data: Dict[str, Any]) -> Self:
         return cls(R=data["R"], G=data["G"], B=data["B"], A=data["A"])
+
+    def to_rgba(self) -> Tuple[float, float, float, float]:
+        return (self.R, self.G, self.B, self.A)
 
 
 @dataclass
@@ -252,6 +254,7 @@ class FileMesh(Mesh):
         The mesh object.
         """
         mesh = trimesh.load_mesh(self.filename)
+        mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
         return mesh
 
     def to_json(self) -> Dict[str, Any]:
@@ -315,7 +318,9 @@ class Sphere(Shape):
         """
         Returns a trimesh object representing the sphere.
         """
-        return trimesh.creation.icosphere(subdivisions=2, radius=self.radius)
+        mesh = trimesh.creation.icosphere(subdivisions=2, radius=self.radius)
+        mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
+        return mesh
 
     @property
     def local_frame_bounding_box(self) -> BoundingBox:
@@ -358,9 +363,11 @@ class Cylinder(Shape):
         """
         Returns a trimesh object representing the cylinder.
         """
-        return trimesh.creation.cylinder(
+        mesh = trimesh.creation.cylinder(
             radius=self.width / 2, height=self.height, sections=16
         )
+        mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
+        return mesh
 
     @property
     def local_frame_bounding_box(self) -> BoundingBox:
@@ -407,7 +414,10 @@ class Box(Shape):
         Returns a trimesh object representing the box.
         The box is centered at the origin and has the specified scale.
         """
-        return trimesh.creation.box(extents=(self.scale.x, self.scale.y, self.scale.z))
+        mesh = trimesh.creation.box(extents=(self.scale.x, self.scale.y, self.scale.z))
+        mesh.visual.vertex_colors = trimesh.visual.color.to_rgba(self.color.to_rgba())
+        return mesh
+
 
     @property
     def local_frame_bounding_box(self) -> BoundingBox:
