@@ -59,7 +59,7 @@ Your goal:
 # surface_region.area = [surface_shape]
 # with world.modify_world():
 #     world.add_kinematic_structure_entity(surface_region)
-#     world.add_connection(FixedConnection(parent=top, child=surface_region, _world=world))
+#     world.add_connection(FixedConnection(parent=top, child=surface_region))
 # before_pos = surface_region.global_pose.to_position().to_np()[:3]
 ```
 
@@ -74,7 +74,7 @@ surface_shape = Box(origin=TransformationMatrix(reference_frame=surface_region),
 surface_region.area = [surface_shape]
 with world.modify_world():
     world.add_kinematic_structure_entity(surface_region)
-    world.add_connection(FixedConnection(parent=top, child=surface_region, _world=world))
+    world.add_connection(FixedConnection(parent=top, child=surface_region))
 # Remember the initial pose
 before_pos = surface_region.global_pose.to_position().to_np()[:3]
 ```
@@ -89,7 +89,7 @@ Your goal:
 # TODO: move the table by adding a 6DoF to its root and updating its origin
 # new_root = Body(name=PrefixedName("root"))
 # with world.modify_world():
-#     root_to_table = Connection6DoF(parent=new_root, child=world.root, _world=world)
+#     root_to_table = Connection6DoF.create_with_dofs(parent=new_root, child=world.root, world=world)
 #     world.add_connection(root_to_table)
 # with world.modify_world():
 #     root_to_table.origin = TransformationMatrix.from_xyz_rpy(x=1.0, y=2.0, reference_frame=world.root)
@@ -99,7 +99,7 @@ Your goal:
 :tags: [example-solution]
 new_root = Body(name=PrefixedName("root"))
 with world.modify_world():
-    root_to_table = Connection6DoF(parent=new_root, child=world.root, _world=world)
+    root_to_table = Connection6DoF.create_with_dofs(parent=new_root, child=world.root, world=world)
     world.add_connection(root_to_table)
 with world.modify_world():
     root_to_table.origin = TransformationMatrix.from_xyz_rpy(x=1.0, y=2.0, reference_frame=world.root)

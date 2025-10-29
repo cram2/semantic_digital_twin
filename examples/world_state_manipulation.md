@@ -120,7 +120,7 @@ with world.modify_world():
     new_root.collision = [box]
     
     world.add_body(new_root)
-    root_T_dresser = Connection6DoF(new_root, old_root, _world=world)
+    root_T_dresser = Connection6DoF.create_with_dofs(parent=new_root, child=old_root, world=world)
     world.add_connection(root_T_dresser)
 rt = RayTracer(world)
 rt.update_scene()

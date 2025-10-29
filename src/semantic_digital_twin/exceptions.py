@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Tuple, Union
 
-from typing_extensions import Optional, List, Type, TYPE_CHECKING, Callable
+from typing_extensions import Optional, List, Type, TYPE_CHECKING, Callable, Tuple, Union
 
 from .datastructures.prefixed_name import PrefixedName
 
@@ -131,10 +130,23 @@ class HasFreeSymbolsError(SpatialTypesError):
     Raised when an operation can't be performed on an expression with free symbols.
     """
 
-    symbols: Iterable[Symbol]
+    symbols: List[Symbol]
 
     def __post_init__(self):
-        msg = f"Operation can't be performed on expression with free symbols: {list(self.symbols)}."
+        msg = f"Operation can't be performed on expression with free symbols: {self.symbols}."
+        super().__init__(msg)
+
+
+@dataclass
+class DuplicateSymbolsError(SpatialTypesError):
+    """
+    Raised when duplicate symbols are found in an operation that requires unique symbols.
+    """
+
+    symbols: List[Symbol]
+
+    def __post_init__(self):
+        msg = f"Operation failed due to duplicate symbols: {self.symbols}. All symbols must be unique."
         super().__init__(msg)
 
 

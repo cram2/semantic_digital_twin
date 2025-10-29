@@ -54,7 +54,7 @@ with world.modify_world():
     # 1) Add a passive 6DoF connection from root -> base.
     #    This will automatically create 7 passive DoFs (x, y, z, qx, qy, qz, qw)
     #    and register them in the world's state.
-    c_root_base = Connection6DoF(parent=root, child=base, _world=world)
+    c_root_base = Connection6DoF.create_with_dofs(parent=root, child=base, world=world)
     world.add_connection(c_root_base)
 
     # 2) Create a custom DoF and use it in an active RevoluteConnection
@@ -68,7 +68,6 @@ with world.modify_world():
         child=link,
         dof_name=joint.name,
         axis=Vector3.Z(reference_frame=base),
-        _world=world,
     )
     world.add_connection(c_base_link)
 

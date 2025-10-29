@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - main
-      - student_exercises
   pull_request:
     branches:
       - main

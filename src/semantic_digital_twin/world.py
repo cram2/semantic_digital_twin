@@ -16,6 +16,7 @@ import rustworkx as rx
 import rustworkx.visit
 import rustworkx.visualization
 from lxml import etree
+from random_events.utils import SubclassJSONSerializer
 from rustworkx import NoEdgeBetweenNodes
 from typing_extensions import (
     Dict,
@@ -50,7 +51,6 @@ from .spatial_computations.raytracer import RayTracer
 from .spatial_types import spatial_types as cas
 from .spatial_types.derivatives import Derivatives
 from .utils import IDGenerator, copy_lru_cache
-from .world_description.connection_factories import ConnectionFactory
 from .world_description.connections import (
     ActiveConnection,
     PassiveConnection,
@@ -687,7 +687,9 @@ class World:
             dof.has_hardware_interface = value
 
     def add_connection(
-        self, connection: Connection, handle_duplicates: bool = False
+        self,
+        connection: Connection,
+        handle_duplicates: bool = False,
     ) -> None:
         """
         Add a connection and the entities it connects to the world.
@@ -1011,8 +1013,8 @@ class World:
 
             connection = root_connection
             if not connection and self_root:
-                connection = Connection6DoF(
-                    parent=self_root, child=other_root, _world=self
+                connection = Connection6DoF.create_with_dofs(
+                    parent=self_root, child=other_root, world=self
                 )
 
             if connection:
@@ -1043,7 +1045,6 @@ class World:
                 new_connection = FixedConnection(
                     parent=new_parent,
                     child=branch_root,
-                    _world=self,
                     parent_T_connection_expression=new_parent_T_root,
                 )
                 self.add_connection(new_connection)
@@ -1052,8 +1053,8 @@ class World:
                 new_parent_T_root = self.compute_forward_kinematics(
                     new_parent, branch_root
                 )
-                new_connection = Connection6DoF(
-                    parent=new_parent, child=branch_root, _world=self
+                new_connection = Connection6DoF.create_with_dofs(
+                    parent=new_parent, child=branch_root, world=self
                 )
                 self.add_connection(new_connection)
                 self.remove_connection(old_connection)
@@ -1071,8 +1072,8 @@ class World:
         :param pose: world_root_T_other_root, the pose of the other world's root with respect to the current world's root
         """
         with self.modify_world():
-            root_connection = Connection6DoF(
-                parent=self.root, child=other.root, _world=self
+            root_connection = Connection6DoF.create_with_dofs(
+                parent=self.root, child=other.root, world=self
             )
             self.merge_world(other, root_connection)
             root_connection.origin = pose
@@ -1747,8 +1748,16 @@ class World:
                 new_world.add_degree_of_freedom(new_dof)
                 dof_mapping[dof] = new_dof
             for connection in self.connections:
-                con_factory = ConnectionFactory.from_connection(connection)
-                con_factory.create(new_world)
+                new_connection = SubclassJSONSerializer.from_json(connection.to_json())
+                new_connection.parent = (
+                    new_world.get_kinematic_structure_entity_by_name(
+                        new_connection.parent.name
+                    )
+                )
+                new_connection.child = new_world.get_kinematic_structure_entity_by_name(
+                    new_connection.child.name
+                )
+                new_world.add_connection(new_connection)
             for dof in self.degrees_of_freedom:
                 new_world.state[dof.name] = self.state[dof.name].data
         return new_world

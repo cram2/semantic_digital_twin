@@ -61,16 +61,15 @@ world = World()
 root = Body(name=PrefixedName(name="root", prefix="world"))
 base = Body(name=PrefixedName("base"))
 body = Body(name=PrefixedName("body"))
-root_C_base = Connection6DoF(parent=root, child=base)
-base_C_body_dof = DegreeOfFreedom(name=PrefixedName("joint_z"))
-base_C_body = RevoluteConnection(
-        parent=base,
-        child=body,
-        dof_name=base_C_body_dof.name,
-        axis=Vector3.Z(reference_frame=base),
-    )
 
 with world.modify_world():
+    root_C_base = Connection6DoF.create_with_dofs(parent=root, child=base, world=world)
+    base_C_body = RevoluteConnection.create_with_dofs(
+            parent=base,
+            child=body,
+            axis=Vector3.Z(reference_frame=base),
+            world=world
+        )
     world.add_connection(root_C_base)    
     world.add_connection(base_C_body)
 ```

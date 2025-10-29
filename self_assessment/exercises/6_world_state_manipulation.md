@@ -67,12 +67,13 @@ green_box = ShapeCollection([Box(
 )])
 root = Body(name=PrefixedName("root"), visual=red_box, collision=red_box)
 slider = Body(name=PrefixedName("slider"), visual=green_box, collision=green_box)
-root_C_slider: PrismaticConnection = PrismaticConnection(
-    parent=root,
-    child=slider,
-    axis=Vector3.X(reference_frame=root),
-)
 with world.modify_world():
+    root_C_slider: PrismaticConnection = PrismaticConnection.create_with_dofs(
+        parent=root,
+        child=slider,
+        axis=Vector3.X(reference_frame=root),
+        world=world,
+    )
     world.add_connection(root_C_slider)
 rt = RayTracer(world); rt.update_scene(); rt.scene.show("jupyter")
 ```

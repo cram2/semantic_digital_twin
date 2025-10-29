@@ -160,9 +160,9 @@ with world.modify_world():
     world.add_semantic_annotation(bottle_large)
     world.add_semantic_annotation(bottle_medium)
 
-    root_C_bottle_large = Connection6DoF(parent=virtual_root, child=bottle_large_body)
-    bottle_large_C_cap = Connection6DoF(parent=bottle_large_body, child=cap_body)
-    root_C_bottle_medium = Connection6DoF(parent=virtual_root, child=bottle_medium_body)
+    root_C_bottle_large = Connection6DoF.create_with_dofs(parent=virtual_root, child=bottle_large_body, world=world)
+    bottle_large_C_cap = Connection6DoF.create_with_dofs(parent=bottle_large_body, child=cap_body, world=world)
+    root_C_bottle_medium = Connection6DoF.create_with_dofs(parent=virtual_root, child=bottle_medium_body, world=world)
 
     world.add_connection(root_C_bottle_large)
     world.add_connection(bottle_large_C_cap)

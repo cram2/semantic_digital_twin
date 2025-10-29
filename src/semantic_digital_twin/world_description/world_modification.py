@@ -13,9 +13,8 @@ from typing_extensions import (
     TYPE_CHECKING,
 )
 
-from .connection_factories import ConnectionFactory
 from .degree_of_freedom import DegreeOfFreedom
-from .world_entity import KinematicStructureEntity, SemanticAnnotation
+from .world_entity import KinematicStructureEntity, SemanticAnnotation, Connection
 from ..datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
@@ -140,34 +139,38 @@ class AddConnectionModification(WorldModelModification):
     Addition of a connection to the world.
     """
 
-    connection_factory: ConnectionFactory
+    connection: Connection
     """
-    The connection factory that can be used to create the added connection again.
+    The connection that was added.
     """
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]):
-        return cls(ConnectionFactory.from_connection(kwargs["connection"]))
+        return cls(kwargs["connection"])
 
     def apply(self, world: World):
-        self.connection_factory.create(world)
+        self.connection.parent = world.get_kinematic_structure_entity_by_name(
+            self.connection.parent.name
+        )
+        self.connection.child = world.get_kinematic_structure_entity_by_name(
+            self.connection.child.name
+        )
+        world.add_connection(self.connection)
 
     def to_json(self):
         return {
             **super().to_json(),
-            "connection_factory": self.connection_factory.to_json(),
+            "connection": self.connection.to_json(),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any]) -> Self:
-        return cls(
-            connection_factory=ConnectionFactory.from_json(data["connection_factory"])
-        )
+        return cls(connection=Connection.from_json(data["connection"]))
 
     def __eq__(self, other):
         return (
             isinstance(other, AddConnectionModification)
-            and self.connection_factory.name == other.connection_factory.name
+            and self.connection.name == other.connection.name
         )
 
 

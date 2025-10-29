@@ -68,8 +68,8 @@ box_body = Body(
     collision=ShapeCollection([cube]),
     visual=ShapeCollection([cube]),
 )
-table_world_C_box = Connection6DoF(table_world.root, box_body)
 with table_world.modify_world():
+    table_world_C_box = Connection6DoF.create_with_dofs(parent=table_world.root, child=box_body, world=table_world)
     table_world.add_connection(table_world_C_box)
 
 rt = RayTracer(table_world); rt.update_scene(); rt.scene.show("jupyter")

@@ -53,7 +53,7 @@ from ..world_description.connections import (
 from ..world_description.degree_of_freedom import DegreeOfFreedom
 from ..world_description.geometry import Scale
 from ..world_description.shape_collection import BoundingBoxCollection, ShapeCollection
-from ..world_description.world_entity import Body, Region
+from ..world_description.world_entity import Body, Region, CollisionCheckingConfig
 
 id_generator = IDGenerator()
 
@@ -166,17 +166,19 @@ class HasDoorLikeFactories(ABC):
                 lower_limits=lower_limits,
                 upper_limits=upper_limits,
             )
-            connection = RevoluteConnection(
-                parent=parent_world.root,
-                child=root,
-                parent_T_connection_expression=parent_T_hinge,
-                multiplier=1.0,
-                offset=0.0,
-                axis=Vector3.Z(),
-                dof_name=dof.name,
-            )
+            with parent_world.modify_world():
+                parent_world.add_degree_of_freedom(dof)
+                connection = RevoluteConnection(
+                    parent=parent_world.root,
+                    child=root,
+                    parent_T_connection_expression=parent_T_hinge,
+                    multiplier=1.0,
+                    offset=0.0,
+                    axis=Vector3.Z(),
+                    dof_name=dof.name,
+                )
 
-            parent_world.merge_world(door_world, connection)
+                parent_world.merge_world(door_world, connection)
 
     def add_doorlike_semantic_annotation_to_world(
         self,
@@ -616,18 +618,19 @@ class HasDrawerFactories(ABC):
             lower_limits=lower_limits,
             upper_limits=upper_limits,
         )
+        with parent_world.modify_world():
+            parent_world.add_degree_of_freedom(dof)
+            connection = PrismaticConnection(
+                parent=parent_root,
+                child=child_root,
+                parent_T_connection_expression=parent_T_drawer,
+                multiplier=1.0,
+                offset=0.0,
+                axis=Vector3.X(),
+                dof_name=dof.name,
+            )
 
-        connection = PrismaticConnection(
-            parent=parent_root,
-            child=child_root,
-            parent_T_connection_expression=parent_T_drawer,
-            multiplier=1.0,
-            offset=0.0,
-            axis=Vector3.X(),
-            dof_name=dof.name,
-        )
-
-        parent_world.merge_world(drawer_world, connection)
+            parent_world.merge_world(drawer_world, connection)
 
     def add_drawers_to_world(self, parent_world: World):
         """

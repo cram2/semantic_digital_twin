@@ -16,6 +16,10 @@ import trimesh.boolean
 from krrood.entity_query_language.predicate import Symbol
 from random_events.utils import SubclassJSONSerializer
 from scipy.stats import geom
+from semantic_digital_twin.world_description.geometry import (
+    transformation_to_json,
+    transformation_from_json,
+)
 from trimesh.proximity import closest_point, nearby_faces
 from trimesh.sample import sample_surface
 from typing_extensions import (
@@ -102,6 +106,11 @@ class CollisionCheckingConfig:
 class KinematicStructureEntity(WorldEntity, SubclassJSONSerializer, ABC):
     """
     An entity that is part of the kinematic structure of the world.
+    """
+
+    _world: Optional[World] = field(default=None, repr=False, hash=False, init=False)
+    """
+    Setting init=False because it should only be set by the World, not during initialization.
     """
 
     index: Optional[int] = field(default=None, init=False)
@@ -194,9 +203,6 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
     def __post_init__(self):
         if not self.name:
             self.name = PrefixedName(f"body_{id_generator(self)}")
-
-        if self._world is not None:
-            self.index = self._world.kinematic_structure.add_node(self)
 
         self.visual.reference_frame = self
         self.collision.reference_frame = self
@@ -686,9 +692,14 @@ class SemanticEnvironmentAnnotation(RootedSemanticAnnotation):
 
 
 @dataclass
-class Connection(WorldEntity):
+class Connection(WorldEntity, SubclassJSONSerializer):
     """
     Represents a connection between two entities in the world.
+    """
+
+    _world: Optional[World] = field(default=None, repr=False, hash=False, init=False)
+    """
+    Setting init=False because it should only be set by the World, not during initialization.
     """
 
     parent: KinematicStructureEntity
@@ -701,12 +712,8 @@ class Connection(WorldEntity):
     The child KinematicStructureEntity of the connection.
     """
 
-    parent_T_connection_expression: TransformationMatrix = field(
-        default_factory=TransformationMatrix
-    )
-    connection_T_child_expression: TransformationMatrix = field(
-        default_factory=TransformationMatrix
-    )
+    parent_T_connection_expression: TransformationMatrix = field(default=None)
+    connection_T_child_expression: TransformationMatrix = field(default=None)
     """
     The origin expression of a connection is split into 2 transforms:
     1. parent_T_connection describes the pose of the connection and is always constant.
@@ -720,6 +727,27 @@ class Connection(WorldEntity):
     connection_T_child is generated in the __post_init__ method.
     """
 
+    def to_json(self) -> Dict[str, Any]:
+        result = super().to_json()
+        result["name"] = self.name.to_json()
+        result["parent"] = self.parent.to_json()
+        result["child"] = self.child.to_json()
+        result["parent_T_connection_expression"] = transformation_to_json(
+            self.parent_T_connection_expression
+        )
+        return result
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any]) -> Self:
+        return cls(
+            name=PrefixedName.from_json(data["name"]),
+            parent=KinematicStructureEntity.from_json(data["parent"]),
+            child=KinematicStructureEntity.from_json(data["child"]),
+            parent_T_connection_expression=transformation_from_json(
+                data["parent_T_connection_expression"]
+            ),
+        )
+
     @property
     def origin_expression(self) -> TransformationMatrix:
         return self.parent_T_connection_expression @ self.connection_T_child_expression
@@ -732,11 +760,15 @@ class Connection(WorldEntity):
         self._world = world
 
     def __post_init__(self):
-        if self.name is None:
-            self.name = PrefixedName(
-                f"{self.parent.name.name}_T_{self.child.name.name}",
-                prefix=self.child.name.prefix,
-            )
+        self.name = self.name or self._generate_default_name(
+            parent=self.parent, child=self.child
+        )
+
+        # If I use default factories, I'd have to complicate the from_json, because I couldn't blindly pass these args
+        if self.parent_T_connection_expression is None:
+            self.parent_T_connection_expression = TransformationMatrix()
+        if self.connection_T_child_expression is None:
+            self.connection_T_child_expression = TransformationMatrix()
 
         if (
             self.parent_T_connection_expression.reference_frame is not None
@@ -749,29 +781,13 @@ class Connection(WorldEntity):
         self.parent_T_connection_expression.reference_frame = self.parent
         self.connection_T_child_expression.child_frame = self.child
 
-    def _post_init_world_part(self):
-        """
-        Executes post-initialization logic based on the presence of a world attribute.
-        """
-        if self._world is None:
-            self._post_init_without_world()
-        else:
-            self._post_init_with_world()
-
-    def _post_init_with_world(self):
-        """
-        Initialize or perform additional setup operations required after the main
-        initialization step. Use for world-related configurations or specific setup
-        details required post object creation.
-        """
-        pass
-
-    def _post_init_without_world(self):
-        """
-        Handle internal initialization processes when _world is None. Perform
-        operations post-initialization for internal use only.
-        """
-        pass
+    @classmethod
+    def _generate_default_name(
+        cls, parent: KinematicStructureEntity, child: KinematicStructureEntity
+    ) -> PrefixedName:
+        return PrefixedName(
+            f"{parent.name.name}_T_{child.name.name}", prefix=child.name.prefix
+        )
 
     def __hash__(self):
         return hash((self.parent, self.child))
@@ -804,6 +820,31 @@ class Connection(WorldEntity):
             dofs.update(set(self.passive_dofs))
 
         return dofs
+
+    @classmethod
+    def create_with_dofs(
+        cls,
+        world: World,
+        parent: KinematicStructureEntity,
+        child: KinematicStructureEntity,
+        name: Optional[PrefixedName] = None,
+        *args,
+        **kwargs,
+    ) -> Self:
+        """
+        This method will automatically generate the degrees of freedom for this connection into the given world
+        and initialize the connection with the generated dofs.
+        :param world: Reference to the world where the dofs should be added.
+        :param parent: parent of the connection.
+        :param child: child of the connection.
+        :param name: name of the connection.
+        :param args: additional arguments the subclass might need
+        :param kwargs: additional keyword arguments the subclass might need
+        :return:
+        """
+        raise NotImplementedError(
+            "ConnectionWithDofs.create_with_dofs is not implemented."
+        )
 
 
 GenericConnection = TypeVar("GenericConnection", bound=Connection)

@@ -65,7 +65,7 @@ with world.modify_world():
     apple_body.collision = [sphere]
     apple_body.visual = [sphere]
 
-    world.add_connection(Connection6DoF(parent=root, child=apple_body, _world=world))
+    world.add_connection(Connection6DoF.create_with_dofs(parent=root, child=apple_body, world=world))
     world.add_semantic_annotation(Apple(body=apple_body, name=PrefixedName("apple1")))
 
     # Our second apple
@@ -73,7 +73,7 @@ with world.modify_world():
     sphere2 = Sphere(radius=0.15, origin=TransformationMatrix(reference_frame=apple_body_2))
     apple_body_2.collision = [sphere2]
     apple_body_2.visual = [sphere2]
-    c2 = Connection6DoF(parent=root, child=apple_body_2, _world=world)
+    c2 = Connection6DoF.create_with_dofs(parent=root, child=apple_body_2, world=world)
     world.add_connection(c2)
     # Move it a bit so we can see both
     world.state[c2.x.name].position = 0.3
