@@ -11,7 +11,6 @@ import os
 from dataclasses import is_dataclass
 
 import krrood.entity_query_language.orm.model
-import krrood.entity_query_language.symbol_graph
 import trimesh
 from krrood.class_diagrams import ClassDiagram
 from krrood.entity_query_language.predicate import HasTypes, HasType, Symbol

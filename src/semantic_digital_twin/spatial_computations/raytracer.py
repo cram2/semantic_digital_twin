@@ -205,7 +205,7 @@ class RayTracer:
         return self.scene.camera_rays()
 
     def ray_test(
-        self, origin_points: np.ndarray, target_points: np.ndarray
+        self, origin_points: np.ndarray, target_points: np.ndarray, multiple_hits=False
     ) -> Tuple[np.ndarray, np.ndarray, List[Body]]:
         """
         Performs a ray test from the origin point to the target point in the ray tracer scene.
@@ -214,6 +214,8 @@ class RayTracer:
         :param target_points: The end point of the ray.
         :return: A tuple containing the points where the ray intersects and the indices of rays that hit the scene as well as the bodies that were.
         """
+        origin_points = np.array(origin_points)
+        target_points = np.array(target_points)
         self.update_scene()
         origin_points = origin_points.reshape((-1, 3))
         target_points = target_points.reshape((-1, 3))
@@ -222,7 +224,7 @@ class RayTracer:
 
         ray_directions = target_points - origin_points
         points, index_ray, index_tri = self.scene.to_mesh().ray.intersects_location(
-            origin_points, ray_directions, multiple_hits=False
+            origin_points, ray_directions, multiple_hits=multiple_hits
         )
         bodies = self.scene.triangles_node[index_tri]
 

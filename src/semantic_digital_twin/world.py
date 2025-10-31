@@ -351,13 +351,17 @@ class World:
                 body.reset_temporary_collision_config()
 
     @property
-    def root(self) -> Optional[KinematicStructureEntity]:
+    def root(self):
+        return self._root(self._model_version)
+
+    @lru_cache()
+    def _root(self, model_version) -> Optional[KinematicStructureEntity]:
         """
         The root of the world is the unique node with in-degree 0.
 
+        :param model_version: Version of the model used to manage the cache of return values.
         :return: The root of the world.
         """
-
         if not self.kinematic_structure_entities:
             return None
         possible_roots = [
@@ -490,7 +494,7 @@ class World:
     def clear_all_lru_caches(self):
         for method_name in dir(self):
             try:
-                method = getattr(self, method_name)
+                method = getattr(type(self), method_name)
                 if hasattr(method, "cache_clear") and callable(method.cache_clear):
                     method.cache_clear()
             except AttributeError:
@@ -517,8 +521,8 @@ class World:
         for model changes.
         """
         # if not self.world_is_being_modified:
-        self.compile_forward_kinematics_expressions()
         self.clear_all_lru_caches()
+        self.compile_forward_kinematics_expressions()
         self.notify_state_change()
         self._model_version += 1
 
@@ -788,7 +792,7 @@ class World:
 
         return visitor.connections
 
-    def get_bodies_of_branch(
+    def get_kinematic_structure_entities_of_branch(
         self, root: KinematicStructureEntity
     ) -> List[KinematicStructureEntity]:
         """
@@ -797,22 +801,10 @@ class World:
         :param root: The root body of the branch
         :return: List of all bodies in the subtree rooted at the given body (including the root)
         """
-
-        # Create a custom visitor to collect bodies
-        class BodyCollector(rustworkx.visit.DFSVisitor):
-            def __init__(self, world: World):
-                self.world = world
-                self.bodies = []
-
-            def discover_vertex(self, node_index: int, time: int) -> None:
-                """Called when a vertex is first discovered during DFS traversal"""
-                body = self.world.kinematic_structure[node_index]
-                self.bodies.append(body)
-
-        visitor = BodyCollector(self)
-        rx.dfs_search(self.kinematic_structure, [root.index], visitor)
-
-        return visitor.bodies
+        descendants_indices = rx.descendants(self.kinematic_structure, root.index)
+        return [root] + [
+            self.kinematic_structure[index] for index in descendants_indices
+        ]
 
     def get_semantic_annotation_by_name(
         self, name: Union[str, PrefixedName]
@@ -1171,6 +1163,7 @@ class World:
             return matches[0]
         raise KeyError(f"Body with name {name} not found")
 
+    @lru_cache(maxsize=None)
     def get_degree_of_freedom_by_name(
         self, name: Union[str, PrefixedName]
     ) -> DegreeOfFreedom:
@@ -1245,24 +1238,6 @@ class World:
         return list(
             self.kinematic_structure.successors(kinematic_structure_entity.index)
         )
-
-    @lru_cache(maxsize=None)
-    def compute_descendent_child_kinematic_structure_entities(
-        self, kinematic_structure_entity: KinematicStructureEntity
-    ) -> List[KinematicStructureEntity]:
-        """
-        Computes all child entities of a given KinematicStructureEntity in the world recursively.
-        :param kinematic_structure_entity: The KinematicStructureEntity for which to compute children.
-        :return: A list of all child KinematicStructureEntities.
-        """
-        children = self.compute_child_kinematic_structure_entities(
-            kinematic_structure_entity
-        )
-        for child in children:
-            children.extend(
-                self.compute_descendent_child_kinematic_structure_entities(child)
-            )
-        return children
 
     @lru_cache(maxsize=None)
     def compute_parent_kinematic_structure_entity(

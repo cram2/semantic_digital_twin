@@ -6,6 +6,7 @@ import pytest
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 
 from semantic_digital_twin.spatial_types import Vector3
+from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
@@ -551,6 +552,16 @@ def test_merge_with_pose_rotation(world_setup, pr2_world):
         fk_base[:3, :3],
         decimal=6,
     )
+
+
+def test_merge_in_empty_world(world_setup):
+    world, l1, l2, bf, r1, r2 = world_setup
+
+    empty_world = World()
+
+    assert empty_world.root is None
+    empty_world.merge_world(world)
+    assert empty_world.root is not None
 
 
 def test_remove_connection(world_setup):

@@ -67,9 +67,9 @@ class ShapeCollection(SubclassJSONSerializer):
             # If we don’t have a world, fall back to the owning body/frame
             shape.origin.reference_frame = self.reference_frame
         elif (
-            self.reference_frame is not None
-            and shape.origin.reference_frame != self.reference_frame
-            and self.reference_frame._world is not None
+                self.reference_frame is not None
+                and shape.origin.reference_frame != self.reference_frame
+                and self.reference_frame._world is not None
         ):
             logger.warning(
                 f"Transformed shape {shape} to {self.reference_frame} since it was in a different "
@@ -114,7 +114,7 @@ class ShapeCollection(SubclassJSONSerializer):
         return concatenate(transformed_meshes)
 
     def as_bounding_box_collection_at_origin(
-        self, origin: TransformationMatrix
+            self, origin: TransformationMatrix
     ) -> BoundingBoxCollection:
         """
         Provides the bounding box collection for this entity given a transformation matrix as origin.
@@ -136,7 +136,7 @@ class ShapeCollection(SubclassJSONSerializer):
         )
 
     def as_bounding_box_collection_in_frame(
-        self, reference_frame: KinematicStructureEntity
+            self, reference_frame: KinematicStructureEntity
     ) -> BoundingBoxCollection:
         """
         Provides the bounding box collection for this entity in the given reference frame.
@@ -182,9 +182,11 @@ class BoundingBoxCollection(ShapeCollection):
     shapes: List[BoundingBox]
 
     def __post_init__(self):
+        if not self.reference_frame:
+            raise ValueError("BoundingBoxCollection must have a reference frame.")
         for box in self.bounding_boxes:
             assert (
-                box.origin.reference_frame == self.reference_frame
+                    box.origin.reference_frame == self.reference_frame
             ), "All bounding boxes must have the same reference frame."
 
     def __iter__(self) -> Iterator[BoundingBox]:
@@ -209,7 +211,7 @@ class BoundingBoxCollection(ShapeCollection):
         :return: The merged bounding box collection.
         """
         assert (
-            self.reference_frame == other.reference_frame
+                self.reference_frame == other.reference_frame
         ), "The reference frames of the bounding box collections must be the same."
         return BoundingBoxCollection(
             reference_frame=self.reference_frame,
@@ -217,7 +219,7 @@ class BoundingBoxCollection(ShapeCollection):
         )
 
     def bloat(
-        self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
+            self, x_amount: float = 0.0, y_amount: float = 0, z_amount: float = 0
     ) -> BoundingBoxCollection:
         """
         Enlarges all bounding boxes in the collection by a given amount in all dimensions.
@@ -235,10 +237,10 @@ class BoundingBoxCollection(ShapeCollection):
 
     @classmethod
     def from_simple_event(
-        cls,
-        reference_frame: KinematicStructureEntity,
-        simple_event: SimpleEvent,
-        keep_surface: bool = False,
+            cls,
+            reference_frame: KinematicStructureEntity,
+            simple_event: SimpleEvent,
+            keep_surface: bool = False,
     ) -> BoundingBoxCollection:
         """
         Create a list of bounding boxes from a simple random event.
@@ -250,9 +252,9 @@ class BoundingBoxCollection(ShapeCollection):
         """
         result = []
         for x, y, z in itertools.product(
-            simple_event[SpatialVariables.x.value].simple_sets,
-            simple_event[SpatialVariables.y.value].simple_sets,
-            simple_event[SpatialVariables.z.value].simple_sets,
+                simple_event[SpatialVariables.x.value].simple_sets,
+                simple_event[SpatialVariables.y.value].simple_sets,
+                simple_event[SpatialVariables.z.value].simple_sets,
         ):
 
             bb = BoundingBox(
@@ -262,7 +264,9 @@ class BoundingBoxCollection(ShapeCollection):
                 x.upper,
                 y.upper,
                 z.upper,
-                TransformationMatrix(reference_frame=reference_frame),
+                TransformationMatrix.from_xyz_quaternion(x.upper - (x.upper - x.lower) / 2, y.upper - (y.upper - y.lower) / 2,
+                                                         z.upper - (z.upper - z.lower) / 2, 0, 0, 0, 1,
+                                                         reference_frame=reference_frame)
             )
             if not keep_surface and (bb.depth == 0 or bb.height == 0 or bb.width == 0):
                 continue
@@ -271,7 +275,7 @@ class BoundingBoxCollection(ShapeCollection):
 
     @classmethod
     def from_event(
-        cls, reference_frame: KinematicStructureEntity, event: Event
+            cls, reference_frame: KinematicStructureEntity, event: Event
     ) -> Self:
         """
         Create a list of bounding boxes from a random event.
@@ -301,7 +305,7 @@ class BoundingBoxCollection(ShapeCollection):
             return cls(shapes=[])
         for shape in shapes:
             assert (
-                shape.origin.reference_frame == shapes[0].origin.reference_frame
+                    shape.origin.reference_frame == shapes[0].origin.reference_frame
             ), "All shapes must have the same reference frame."
 
         local_bbs = [shape.local_frame_bounding_box for shape in shapes]
@@ -339,5 +343,5 @@ class BoundingBoxCollection(ShapeCollection):
             max(all_x),
             max(all_y),
             max(all_z),
-            self.reference_frame.global_pose,
+            TransformationMatrix.from_xyz_quaternion(reference_frame=self.reference_frame),
         )

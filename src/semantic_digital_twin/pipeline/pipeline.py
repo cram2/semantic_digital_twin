@@ -151,9 +151,7 @@ class BodyFactoryReplace(Step):
             if parent_connection is None:
                 return factory.create()
 
-            for entity in world.compute_descendent_child_kinematic_structure_entities(
-                body
-            ):
+            for entity in world.get_kinematic_structure_entities_of_branch(body):
                 world.remove_kinematic_structure_entity(entity)
 
             world.remove_kinematic_structure_entity(body)

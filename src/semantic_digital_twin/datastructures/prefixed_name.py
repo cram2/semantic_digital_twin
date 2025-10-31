@@ -18,7 +18,9 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
         return f"{self.prefix}/{self.name}"
 
     def __eq__(self, other):
-        return str(self) == str(other)
+        if not isinstance(other, PrefixedName):
+            return False
+        return self.prefix == other.prefix and self.name == other.name
 
     def to_json(self) -> Dict[str, Any]:
         return {**super().to_json(), "name": self.name, "prefix": self.prefix}
