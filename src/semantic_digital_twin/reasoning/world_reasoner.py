@@ -51,10 +51,10 @@ class WorldReasoner:
 
         :return: The inferred concepts as a dictionary mapping concept name to all inferred values of that concept.
         """
-        if self.world._model_version != self._last_world_model_version:
+        if self.world.get_world_model_manager().model_version != self._last_world_model_version:
             self.reasoner.result = self.reasoner.rdr.classify(self.world)
             self._update_world_attributes()
-            self._last_world_model_version = self.world._model_version
+            self._last_world_model_version = self.world.get_world_model_manager().model_version
         return self.reasoner.result
 
     def _update_world_attributes(self):

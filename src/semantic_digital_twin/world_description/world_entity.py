@@ -475,6 +475,7 @@ GenericKinematicStructureEntity = TypeVar(
     "GenericKinematicStructureEntity", bound=KinematicStructureEntity
 )
 
+GenericWorldEntity = TypeVar("GenericWorldEntity", bound=WorldEntity)
 
 @dataclass
 class SemanticAnnotation(WorldEntity, SubclassJSONSerializer):

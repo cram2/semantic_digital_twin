@@ -65,7 +65,7 @@ class FetchWorldServer:
         :return: JSON string containing all modification blocks.
         """
         modifications_list = [
-            block.to_json() for block in self.world._model_modification_blocks
+            block.to_json() for block in self.world.get_world_model_manager().model_modification_blocks
         ]
         return json.dumps(modifications_list)
 

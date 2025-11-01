@@ -170,7 +170,7 @@ def test_compute_fk_np_l_elbow_flex_joint_pr2(pr2_world):
         PrefixedName("l_upper_arm_link")
     )
 
-    fk_expr = pr2_world.compose_forward_kinematics_expression(root, tip)
+    fk_expr = pr2_world.forward_kinematic_manager.compose_forward_kinematics_expression(root, tip)
     fk_expr_compiled = fk_expr.compile()
     fk2 = fk_expr_compiled(
         symbol_manager.resolve_symbols(*fk_expr_compiled.symbol_parameters)
@@ -361,7 +361,7 @@ def test_load_collision_config_srdf(pr2_world):
     )
     pr2_world.load_collision_srdf(path)
     assert len([b for b in pr2_world.bodies if b.get_collision_config().disabled]) == 20
-    assert len(pr2_world.disabled_collision_pairs) == 1128
+    assert len(pr2_world._collision_pair_manager.disabled_collision_pairs) == 1128
 
 
 def test_tracy_semantic_annotation(tracy_world):

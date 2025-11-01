@@ -12,6 +12,7 @@ from semantic_digital_twin.adapters.procthor.procthor_pipelines import (
     door_factory_from_body,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import WorldEntityNotFoundError
 from semantic_digital_twin.pipeline.pipeline import (
     Step,
     Pipeline,
@@ -137,8 +138,8 @@ class PipelineTestCase(unittest.TestCase):
 
         replaced_world = procthor_factory_replace_pipeline.apply(world)
 
-        self.assertRaises(KeyError, replaced_world.get_body_by_name, "dresser_205")
-        self.assertRaises(KeyError, replaced_world.get_body_by_name, "dresser_217")
+        self.assertRaises(WorldEntityNotFoundError, replaced_world.get_body_by_name, "dresser_205")
+        self.assertRaises(WorldEntityNotFoundError, replaced_world.get_body_by_name, "dresser_217")
         self.assertTrue(replaced_world.semantic_annotations)
         self.assertIsNotNone(
             replaced_world.get_semantic_annotation_by_name("dresser_205")

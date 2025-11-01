@@ -14,8 +14,7 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.exceptions import (
     AddingAnExistingSemanticAnnotationError,
-    DuplicateSemanticAnnotationError,
-    SemanticAnnotationNotFoundError,
+    DuplicateWorldEntityError,
     DuplicateKinematicStructureEntityError,
     UsageError,
     MissingWorldModificationContextError,
@@ -255,7 +254,7 @@ def test_compute_fk_expression(world_setup):
     world.state[connection.dof.name].position = 1.0
     world.notify_state_change()
     fk = world.compute_forward_kinematics_np(r2, l2)
-    fk_expr = world.compose_forward_kinematics_expression(r2, l2)
+    fk_expr = world.forward_kinematic_manager.compose_forward_kinematics_expression(r2, l2)
     fk_expr_compiled = fk_expr.compile()
     fk2 = fk_expr_compiled(
         *symbol_manager.resolve_symbols(fk_expr_compiled.symbol_parameters)
@@ -378,7 +377,7 @@ def test_duplicate_semantic_annotation(world_setup):
     with world.modify_world():
         world.add_semantic_annotation(v)
         world.semantic_annotations.append(v)
-    with pytest.raises(DuplicateSemanticAnnotationError):
+    with pytest.raises(DuplicateWorldEntityError):
         world.get_semantic_annotation_by_name(v.name)
 
 

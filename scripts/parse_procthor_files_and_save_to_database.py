@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from typing import List
 
 import tqdm
 from krrood.ormatic.dao import to_dao

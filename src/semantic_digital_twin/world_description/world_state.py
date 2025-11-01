@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 
-from typing_extensions import MutableMapping, List, Dict
+from typing_extensions import MutableMapping, List, Dict, Self
 
 import numpy as np
 
+from .degree_of_freedom import DegreeOfFreedom
+from ..callbacks.callback import StateChangeCallback
 from ..datastructures.prefixed_name import PrefixedName
 from ..spatial_types.derivatives import Derivatives
 
@@ -74,6 +76,28 @@ class WorldState(MutableMapping):
     # maps joint_name -> column index
     _index: Dict[PrefixedName, int] = field(default_factory=dict)
 
+    _state_version: int = 0
+    """
+    The version of the state. This increases whenever a change to the state of the kinematic model is made. 
+    Mostly triggered by updating connection values.
+    """
+
+    state_change_callbacks: List[StateChangeCallback] = field(
+        default_factory=list, repr=False
+    )
+    """
+    Callbacks to be called when the state of the world changes.
+    """
+
+    def _notify_state_change(self) -> None:
+        """
+        If you have changed the state of the world, call this function to trigger necessary events and increase
+        the state version.
+        """
+        self._state_version += 1
+        for callback in self.state_change_callbacks:
+            callback.notify()
+
     def _add_dof(self, name: PrefixedName) -> None:
         idx = len(self._names)
         self._names.append(name)
@@ -122,6 +146,20 @@ class WorldState(MutableMapping):
 
     def __len__(self) -> int:
         return len(self._names)
+
+    def __eq__(self, other: Self) -> bool:
+        if self is other:
+            return True
+
+        if set(self._names) != set(other._names):
+            return False
+
+        return all(
+            np.array_equal(
+                self.data[:, self._index[name]], other.data[:, other._index[name]]
+            )
+            for name in self._names
+        )
 
     def keys(self) -> List[PrefixedName]:
         return self._names
@@ -185,3 +223,20 @@ class WorldState(MutableMapping):
         new_state._names = self._names.copy()
         new_state._index = self._index.copy()
         return new_state
+
+    def add_degree_of_freedom_position(self, dof: DegreeOfFreedom):
+        """
+        Adds a degree of freedom to the world state, initializing its position to 0 or the nearest limit.
+        """
+        dof.create_and_register_symbols()
+
+        lower = dof.lower_limits.position
+        upper = dof.upper_limits.position
+        initial_position = 0
+
+        if lower is not None:
+            initial_position = max(lower, initial_position)
+        if upper is not None:
+            initial_position = min(upper, initial_position)
+
+        self[dof.name].position = initial_position

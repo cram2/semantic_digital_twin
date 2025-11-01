@@ -7,7 +7,7 @@ from typing_extensions import Optional, Tuple, Union, List, Dict
 from urdf_parser_py import urdf as urdfpy
 
 from ..datastructures.prefixed_name import PrefixedName
-from ..exceptions import ParsingError
+from ..exceptions import ParsingError, WorldEntityNotFoundError
 from ..spatial_types import spatial_types as cas
 from ..spatial_types.derivatives import Derivatives, DerivativeMap
 from ..spatial_types.spatial_types import TransformationMatrix, Vector3
@@ -171,7 +171,6 @@ class URDFParser:
                 joints.append(parsed_joint)
 
             [world.add_connection(joint) for joint in joints]
-            [world.add_kinematic_structure_entity(link) for link in links]
 
         return world
 
@@ -228,7 +227,7 @@ class URDFParser:
 
         try:
             dof = world.get_degree_of_freedom_by_name(dof_name)
-        except KeyError as e:
+        except WorldEntityNotFoundError as e:
             dof = DegreeOfFreedom(
                 name=dof_name,
                 lower_limits=lower_limits,

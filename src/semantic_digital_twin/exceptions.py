@@ -48,11 +48,11 @@ class MissingWorldModificationContextError(UsageError):
 
 
 @dataclass
-class DuplicateSemanticAnnotationError(UsageError):
-    semantic_annotations: List[SemanticAnnotation]
+class DuplicateWorldEntityError(UsageError):
+    world_entities: List[WorldEntity]
 
     def __post_init__(self):
-        msg = f"Semantic annotations {self.semantic_annotations} are duplicates, while semantic annotations elements should be unique."
+        msg = f"WorldEntities {self.world_entities} are duplicates, while world entity elements should be unique."
         super().__init__(msg)
 
 
@@ -157,11 +157,11 @@ class ParsingError(Exception):
 
 
 @dataclass
-class SemanticAnnotationNotFoundError(UsageError):
+class WorldEntityNotFoundError(UsageError):
     name: PrefixedName
 
     def __post_init__(self):
-        msg = f"Semantic annotation with name {self.name} not found"
+        msg = f"WorldEntity with name {self.name} not found"
         super().__init__(msg)
 
 

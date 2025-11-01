@@ -61,12 +61,12 @@ class RayTracer:
         Updates the ray tracer scene with the current state of the world.
         This method should be called whenever the world changes to ensure the ray tracer has the latest information.
         """
-        if self._last_world_model != self.world._model_version:
+        if self._last_world_model != self.world.get_world_model_manager().model_version:
             self.add_missing_bodies()
-            self._last_world_model = self.world._model_version
-        if self._last_world_state != self.world._state_version:
+            self._last_world_model = self.world.get_world_model_manager().model_version
+        if self._last_world_state != self.world.state._state_version:
             self.update_transforms()
-            self._last_world_state = self.world._state_version
+            self._last_world_state = self.world.state._state_version
 
     def add_missing_bodies(self):
         """

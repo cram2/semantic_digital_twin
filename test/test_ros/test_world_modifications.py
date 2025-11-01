@@ -84,7 +84,7 @@ class ConnectionModificationTestCase(unittest.TestCase):
                 )
             )
 
-        modifications = w._model_modification_blocks[-1]
+        modifications = w.get_world_model_manager().model_modification_blocks[-1]
         self.assertEqual(len(modifications.modifications), 13)
 
         add_body_modifications = [
@@ -125,7 +125,7 @@ class ConnectionModificationTestCase(unittest.TestCase):
                 w.get_kinematic_structure_entity_by_name("b3")
             )
 
-        modifications = w._model_modification_blocks[-1]
+        modifications = w.get_world_model_manager().model_modification_blocks[-1]
         self.assertEqual(len(modifications.modifications), 3)
 
         modifications_copy = WorldModelModificationBlock.from_json(

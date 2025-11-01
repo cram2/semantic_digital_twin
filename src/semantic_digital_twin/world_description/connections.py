@@ -12,6 +12,7 @@ from .world_entity import CollisionCheckingConfig, Connection
 from .. import spatial_types as cas
 from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.types import NpMatrix4x4
+from ..exceptions import WorldEntityNotFoundError
 from ..spatial_types.derivatives import DerivativeMap
 
 if TYPE_CHECKING:
@@ -144,7 +145,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
     def _post_init_with_world(self):
         try:
             dof = self._world.get_degree_of_freedom_by_name(self.dof_name)
-        except KeyError:
+        except WorldEntityNotFoundError:
             # catch the case where the dof_name is set, but a dof of that name doesn't exist in the world (anymore)
             # can happen if you remove and re-add a connection
             self.dof_name = None
