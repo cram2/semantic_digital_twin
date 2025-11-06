@@ -5,6 +5,7 @@ import scipy
 from hypothesis import given, assume
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.exceptions import (
     HasFreeSymbolsError,
     WrongDimensionsError,
@@ -142,6 +143,9 @@ class TestLogic3:
 
 
 class TestSymbol:
+    def test_muh(self):
+        a = PrefixedName("asd")
+
     def test_from_name(self):
         s = cas.Symbol(name="muh")
         assert isinstance(s, cas.Symbol)
