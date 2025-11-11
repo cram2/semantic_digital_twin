@@ -239,7 +239,7 @@ class WorldState(MutableMapping):
         """
         Adds a degree of freedom to the world state, initializing its position to 0 or the nearest limit.
         """
-        dof.create_and_register_symbols()
+        dof.create_variables()
 
         lower = dof.lower_limits.position
         upper = dof.upper_limits.position
@@ -252,31 +252,31 @@ class WorldState(MutableMapping):
 
         self[dof.name].position = initial_position
 
-    def get_symbols(self) -> List[cas.Symbol]:
+    def get_variables(self) -> List[cas.FloatVariable]:
         """
-        Constructs and returns a list of symbols representing the state of the system. The state
+        Constructs and returns a list of variables representing the state of the system. The state
         is defined in terms of positions, velocities, accelerations, and jerks for each degree
         of freedom specified in the current state.
 
         :raises KeyError: If a degree of freedom defined in the state does not exist in
             the `degrees_of_freedom`.
-        :returns: A combined list of symbols corresponding to the positions, velocities,
+        :returns: A combined list of variables corresponding to the positions, velocities,
             accelerations, and jerks for each degree of freedom in the state.
         """
         positions = [
-            self._world.get_degree_of_freedom_by_name(v_name).symbols.position
+            self._world.get_degree_of_freedom_by_name(v_name).variables.position
             for v_name in self
         ]
         velocities = [
-            self._world.get_degree_of_freedom_by_name(v_name).symbols.velocity
+            self._world.get_degree_of_freedom_by_name(v_name).variables.velocity
             for v_name in self
         ]
         accelerations = [
-            self._world.get_degree_of_freedom_by_name(v_name).symbols.acceleration
+            self._world.get_degree_of_freedom_by_name(v_name).variables.acceleration
             for v_name in self
         ]
         jerks = [
-            self._world.get_degree_of_freedom_by_name(v_name).symbols.jerk
+            self._world.get_degree_of_freedom_by_name(v_name).variables.jerk
             for v_name in self
         ]
         return positions + velocities + accelerations + jerks

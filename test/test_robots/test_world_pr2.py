@@ -24,7 +24,6 @@ from semantic_digital_twin.robots.abstract_robot import KinematicChain
 from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
-from semantic_digital_twin.spatial_types.symbol_manager import symbol_manager
 from semantic_digital_twin.world import World
 from semantic_digital_twin.testing import pr2_world, tracy_world, hsrb_world
 
@@ -171,10 +170,7 @@ def test_compute_fk_np_l_elbow_flex_joint_pr2(pr2_world):
     )
 
     fk_expr = pr2_world.compose_forward_kinematics_expression(root, tip)
-    fk_expr_compiled = fk_expr.compile()
-    fk2 = fk_expr_compiled(
-        symbol_manager.resolve_symbols(*fk_expr_compiled.symbol_parameters)
-    )
+    fk2 = fk_expr.evaluate()
 
     np.testing.assert_array_almost_equal(
         fk2,

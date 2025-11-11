@@ -48,7 +48,6 @@ from ..world_description.world_entity import (
 from ..world_description.world_modification import (
     AddKinematicStructureEntityModification,
 )
-from ..spatial_types.symbol_manager import symbol_manager
 
 
 def cas_pose_to_list(pose: TransformationMatrix) -> List[float]:
@@ -60,8 +59,8 @@ def cas_pose_to_list(pose: TransformationMatrix) -> List[float]:
     """
     pos = pose.to_position()
     quat = pose.to_quaternion()
-    px, py, pz, _ = symbol_manager.evaluate_expr(pos).tolist()
-    qx, qy, qz, qw = symbol_manager.evaluate_expr(quat).tolist()
+    px, py, pz, _ = pos.evaluate().tolist()
+    qx, qy, qz, qw = quat.evaluate().tolist()
     return [px, py, pz, qw, qx, qy, qz]
 
 

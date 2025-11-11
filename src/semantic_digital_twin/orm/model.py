@@ -13,7 +13,6 @@ from ..datastructures.prefixed_name import PrefixedName
 from ..spatial_types import RotationMatrix, Vector3, Point3, TransformationMatrix
 from ..spatial_types.derivatives import DerivativeMap
 from ..spatial_types.spatial_types import Quaternion
-from ..spatial_types.symbol_manager import symbol_manager
 from ..world import World
 from ..world_description.connections import Connection
 from ..world_description.degree_of_freedom import DegreeOfFreedom
@@ -99,7 +98,7 @@ class Vector3Mapping(AlternativeMapping[Vector3]):
 
     @classmethod
     def create_instance(cls, obj: Vector3):
-        x, y, z, _ = symbol_manager.evaluate_expr(obj).tolist()
+        x, y, z, _ = obj.to_np().tolist()
         result = cls(x=x, y=y, z=z)
         result.reference_frame = obj.reference_frame
         return result
@@ -122,7 +121,7 @@ class Point3Mapping(AlternativeMapping[Point3]):
 
     @classmethod
     def create_instance(cls, obj: Point3):
-        x, y, z, _ = symbol_manager.evaluate_expr(obj).tolist()
+        x, y, z, _ = obj.to_np().tolist()
         result = cls(x=x, y=y, z=z)
         result.reference_frame = obj.reference_frame
         return result
@@ -144,7 +143,7 @@ class QuaternionMapping(AlternativeMapping[Quaternion]):
 
     @classmethod
     def create_instance(cls, obj: Quaternion):
-        x, y, z, w = symbol_manager.evaluate_expr(obj).tolist()
+        x, y, z, w = obj.to_np().tolist()
         result = cls(x=x, y=y, z=z, w=w)
         result.reference_frame = obj.reference_frame
         return result

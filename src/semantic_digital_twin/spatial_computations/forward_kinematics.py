@@ -93,7 +93,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
                 continue
             collision_fks.append(self.child_body_to_fk_expr[body.name])
         collision_fks = cas.Expression.vstack(collision_fks)
-        params = [v.symbols.position for v in self.world.degrees_of_freedom]
+        params = [v.variables.position for v in self.world.degrees_of_freedom]
         self.compiled_all_fks = all_fks.compile(parameters=[params])
         self.compiled_collision_fks = collision_fks.compile(parameters=[params])
         self.compiled_tf = tf.compile(parameters=[params])

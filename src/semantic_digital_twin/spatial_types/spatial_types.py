@@ -38,11 +38,12 @@ from ..adapters.world_entity_kwargs_tracker import (
 )
 from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import (
-    HasFreeSymbolsError,
+    HasFreeVariablesError,
     NotSquareMatrixError,
     WrongDimensionsError,
     SpatialTypesError,
-    DuplicateSymbolsError,
+    WrongNumberOfArgsError,
+    DuplicateVariablesError,
     SpatialTypeNotJsonSerializable,
 )
 
@@ -66,7 +67,7 @@ class CompiledFunction:
     """
     The symbolic expression to compile.
     """
-    symbol_parameters: Optional[List[List[Symbol]]] = None
+    variable_parameters: Optional[List[List[FloatVariable]]] = None
     """
     The input parameters for the compiled symbolic expression.
     """
@@ -94,13 +95,13 @@ class CompiledFunction:
     """
 
     def __post_init__(self):
-        if self.symbol_parameters is None:
-            self.symbol_parameters = [self.expression.free_symbols()]
+        if self.variable_parameters is None:
+            self.variable_parameters = [self.expression.free_variables()]
         else:
-            self._validate_symbols()
+            self._validate_variables()
 
-        if len(self.symbol_parameters) == 1 and len(self.symbol_parameters[0]) == 0:
-            self.symbol_parameters = []
+        if len(self.variable_parameters) == 1 and len(self.variable_parameters[0]) == 0:
+            self.variable_parameters = []
 
         if len(self.expression) == 0:
             self._setup_empty_result()
@@ -108,32 +109,34 @@ class CompiledFunction:
 
         self._setup_compiled_function()
         self._setup_output_buffer()
-        if len(self.symbol_parameters) == 0:
+        if len(self.variable_parameters) == 0:
             self._setup_constant_result()
 
-    def _validate_symbols(self):
-        """Validates symbols for both missing and duplicate issues."""
-        symbols = []
-        for symbol_parameter in self.symbol_parameters:
-            symbols.extend(symbol_parameter)
+    def _validate_variables(self):
+        """Validates variables for both missing and duplicate issues."""
+        variables = []
+        for variable_parameter in self.variable_parameters:
+            variables.extend(variable_parameter)
 
-        symbols_set = set(symbols)
+        variables_set = set(variables)
 
-        # Check for missing symbols
-        missing_symbols = set(self.expression.free_symbols()).difference(symbols_set)
-        if missing_symbols:
-            raise HasFreeSymbolsError(missing_symbols)
+        # Check for missing variables
+        missing_variables = set(self.expression.free_variables()).difference(
+            variables_set
+        )
+        if missing_variables:
+            raise HasFreeVariablesError(missing_variables)
 
-        # Check for duplicate symbols
-        if len(symbols_set) != len(symbols):
-            symbol_counts = Counter(symbols)
+        # Check for duplicate variables
+        if len(variables_set) != len(variables):
+            variable_counts = Counter(variables)
             all_duplicates = [
-                symbol
-                for symbol, count in symbol_counts.items()
+                variable
+                for variable, count in variable_counts.items()
                 if count > 1
                 for _ in range(count)
             ]
-            raise DuplicateSymbolsError(all_duplicates)
+            raise DuplicateVariablesError(all_duplicates)
 
     def _setup_empty_result(self) -> None:
         """
@@ -150,10 +153,10 @@ class CompiledFunction:
         Setup the CasADi compiled function.
         """
         casadi_parameters = []
-        if len(self.symbol_parameters) > 0:
-            # create an array for each List[Symbol]
+        if len(self.variable_parameters) > 0:
+            # create an array for each List[FloatVariable]
             casadi_parameters = [
-                Expression(data=p).casadi_sx for p in self.symbol_parameters
+                Expression(data=p).casadi_sx for p in self.variable_parameters
             ]
 
         if self.sparse:
@@ -178,7 +181,7 @@ class CompiledFunction:
         )
         self.zeroes = np.zeros(self.expression.casadi_sx.nnz())
 
-    def _compile_dense_function(self, casadi_parameters: List[Symbol]) -> None:
+    def _compile_dense_function(self, casadi_parameters: List[FloatVariable]) -> None:
         """
         Compile function for dense matrices.
 
@@ -245,12 +248,19 @@ class CompiledFunction:
 
         (Yes, this makes a significant speed different.)
 
-        :param args: A numpy array for each List[Symbol] in self.symbol_parameters.
+        :param args: A numpy array for each List[FloatVariable] in self.variable_parameters.
             .. warning:: Make sure the numpy array is of type float! (check is too expensive)
         :return: The evaluated result as numpy array or sparse matrix
         """
         if self._is_constant:
             return self._out
+        expected_number_of_args = len(self.variable_parameters)
+        actual_number_of_args = len(args)
+        if expected_number_of_args != actual_number_of_args:
+            raise WrongNumberOfArgsError(
+                expected_number_of_args,
+                actual_number_of_args,
+            )
         for arg_idx, arg in enumerate(args):
             self._function_buffer.set_arg(arg_idx, memoryview(arg))
         self._function_evaluator()
@@ -260,16 +270,16 @@ class CompiledFunction:
         """
         Call the object instance with the provided keyword arguments. This method retrieves
         the required arguments from the keyword arguments based on the defined
-        `symbol_parameters`, compiles them into an array, and then calls the instance
+        `variable_parameters`, compiles them into an array, and then calls the instance
         with the constructed array.
 
         :param kwargs: A dictionary of keyword arguments containing the parameters
-            that match the symbols defined in `symbol_parameters`.
+            that match the variables defined in `variable_parameters`.
         :return: A NumPy array resulting from invoking the callable object instance
             with the filtered arguments.
         """
         args = []
-        for params in self.symbol_parameters:
+        for params in self.variable_parameters:
             for param in params:
                 args.append(kwargs[str(param)])
         filtered_args = np.array(args, dtype=float)
@@ -281,7 +291,7 @@ class CompiledFunctionWithViews:
     """
     A wrapper for CompiledFunction which automatically splits the result array into multiple views, with minimal
     overhead.
-    Useful, when many arrays must be evaluated at the same time, especially when they depend on the same symbols.
+    Useful, when many arrays must be evaluated at the same time, especially when they depend on the same variables.
     """
 
     expressions: List[Expression]
@@ -289,7 +299,7 @@ class CompiledFunctionWithViews:
     The list of expressions to be compiled, the first len(expressions) many results of __call__ correspond to those
     """
 
-    symbol_parameters: List[List[Symbol]]
+    variable_parameters: List[List[FloatVariable]]
     """
     The input parameters for the compiled symbolic expression.
     """
@@ -312,7 +322,7 @@ class CompiledFunctionWithViews:
     def __post_init__(self):
         combined_expression = Expression.vstack(self.expressions)
         self.compiled_function = combined_expression.compile(
-            parameters=self.symbol_parameters, sparse=False
+            parameters=self.variable_parameters, sparse=False
         )
         slices = []
         start = 0
@@ -329,7 +339,7 @@ class CompiledFunctionWithViews:
 
     def __call__(self, *args: np.ndarray) -> List[np.ndarray]:
         """
-        :param args: A numpy array for each List[Symbol] in self.symbol_parameters.
+        :param args: A numpy array for each List[FloatVariable] in self.variable_parameters.
         :return: A np array for each expression, followed by arrays corresponding to the additional views.
             They are all views on self.compiled_function.out.
         """
@@ -406,19 +416,19 @@ class SymbolicType:
     def __len__(self) -> int:
         return self.shape[0]
 
-    def free_symbols(self) -> List[Symbol]:
-        return [Symbol._registry[str(s)] for s in ca.symvar(self.casadi_sx)]
+    def free_variables(self) -> List[FloatVariable]:
+        return [FloatVariable._registry[s] for s in ca.symvar(self.casadi_sx)]
 
     def is_constant(self) -> bool:
-        return len(self.free_symbols()) == 0
+        return len(self.free_variables()) == 0
 
     def to_np(self) -> np.ndarray:
         """
         Transforms the data into a numpy array.
-        Only works if the expression has no free symbols.
+        Only works if the expression has no free variables.
         """
         if not self.is_constant():
-            raise HasFreeSymbolsError(self.free_symbols())
+            raise HasFreeVariablesError(self.free_variables())
         if self.shape[0] == self.shape[1] == 0:
             return np.eye(0)
         elif self.casadi_sx.shape[0] == 1 or self.casadi_sx.shape[1] == 1:
@@ -427,14 +437,16 @@ class SymbolicType:
             return np.array(ca.evalf(self.casadi_sx))
 
     def compile(
-        self, parameters: Optional[List[List[Symbol]]] = None, sparse: bool = False
+        self,
+        parameters: Optional[List[List[FloatVariable]]] = None,
+        sparse: bool = False,
     ) -> CompiledFunction:
         """
         Compiles the function into a representation that can be executed efficiently. This method
         allows for optional parameterization and the ability to specify whether the compilation
         should consider a sparse representation.
 
-        :param parameters: A list of parameter sets, where each set contains symbols that define
+        :param parameters: A list of parameter sets, where each set contains variables that define
             the configuration for the compiled function. If set to None, no parameters are applied.
         :param sparse: A boolean that determines whether the compiled function should use a
             sparse representation. Defaults to False.
@@ -442,27 +454,37 @@ class SymbolicType:
         """
         return CompiledFunction(self, parameters, sparse)
 
+    def evaluate(self) -> np.ndarray:
+        """
+        Substitutes the free variables in this expression using their `resolve` method and compute the result.
+        :return: The evaluate value of this expression.
+        """
+        f = self.compile([self.free_variables()], sparse=False)
+        return f(
+            np.array([s.resolve() for s in self.free_variables()], dtype=np.float64)
+        )
+
     def substitute(
         self,
-        old_symbols: List[Symbol],
-        new_symbols: List[Union[Symbol, Expression]],
+        old_variables: List[FloatVariable],
+        new_variables: List[Union[FloatVariable, Expression]],
     ) -> Self:
         """
-        Replace symbols in an expression with new symbols or expressions.
+        Replace variables in an expression with new variables or expressions.
 
-        This function substitutes symbols in the given expression with the provided
-        new symbols or expressions. It ensures that the original expression remains
+        This function substitutes variables in the given expression with the provided
+        new variables or expressions. It ensures that the original expression remains
         unaltered and creates a new instance with the substitutions applied.
 
-        :param old_symbols: A list of symbols in the expression which need to be replaced.
-        :param new_symbols: A list of new symbols or expressions which will replace the old symbols.
-            The length of this list must correspond to the `old_symbols` list.
-        :return: A new expression with the specified symbols replaced.
+        :param old_variables: A list of variables in the expression which need to be replaced.
+        :param new_variables: A list of new variables or expressions which will replace the old variables.
+            The length of this list must correspond to the `old_variables` list.
+        :return: A new expression with the specified variables replaced.
         """
-        old_symbols = Expression(data=[to_sx(s) for s in old_symbols]).casadi_sx
-        new_symbols = Expression(data=[to_sx(s) for s in new_symbols]).casadi_sx
+        old_variables = Expression(data=[to_sx(s) for s in old_variables]).casadi_sx
+        new_variables = Expression(data=[to_sx(s) for s in new_variables]).casadi_sx
         result = copy(self)
-        result.casadi_sx = ca.substitute(self.casadi_sx, old_symbols, new_symbols)
+        result.casadi_sx = ca.substitute(self.casadi_sx, old_variables, new_variables)
         return result
 
     def norm(self) -> Expression:
@@ -498,7 +520,7 @@ class BasicOperatorMixin:
         """
         Performs a binary operation between the current instance and another operand.
 
-        Symbol only allows ScalarData on the righthand sight and implements the reverse version only for NumericalScalaer
+        FloatVariable only allows ScalarData on the righthand sight and implements the reverse version only for NumericalScalaer
 
         :param other: The operand to be used in the binary operation. Either `ScalarData`
             or `NumericalScalar` types are expected, depending on the context.
@@ -708,41 +730,43 @@ class MatrixOperationsMixin:
 
 
 @dataclass(eq=False)
-class Symbol(SymbolicType, BasicOperatorMixin):
+class FloatVariable(SymbolicType, BasicOperatorMixin):
     """
-    A symbolic expression, which should be only a single symbols.
+    A symbolic expression representing a single float variable.
     No matrix and no numbers.
     """
 
-    name: str = field(kw_only=True)
+    name: PrefixedName = field(kw_only=True)
 
     casadi_sx: ca.SX = field(kw_only=True, init=False, default=None)
 
-    _registry: ClassVar[Dict[str, Symbol]] = {}
+    _registry: ClassVar[Dict[ca.SX, FloatVariable]] = {}
     """
-    To avoid two symbols with the same name, references to existing symbols are stored on a class level.
+    Keeps track of which FloatVariable instances are associated with which which casadi.SX instances.
+    Needed to recreate the FloatVariables from a casadi expression.
+    .. warning:: Does not ensure that two FloatVariable instances are identical.
     """
 
-    def __new__(cls, name: str):
-        """
-        Multiton design pattern prevents two symbol instances with the same name.
-        """
-        if name in cls._registry:
-            return cls._registry[name]
-        instance = super().__new__(cls)
-        instance.casadi_sx = ca.SX.sym(name)
-        instance.name = name
-        cls._registry[name] = instance
-        return instance
+    def __post_init__(self):
+        self.casadi_sx = ca.SX.sym(str(self.name))
+        self._registry[self.casadi_sx] = self
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __repr__(self):
-        return f"Symbol({self})"
+        return f"Variable({self})"
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self.casadi_sx)
+
+    def resolve(self) -> float:
+        """
+        This method is called by SymbolicType.evaluate().
+        Subclasses should override this method to return the current float value for this variable.
+        :return: This variables' current value.
+        """
+        return np.nan
 
 
 @dataclass(eq=False)
@@ -770,7 +794,7 @@ class Expression(
                 NumericalScalar,
                 NumericalArray,
                 Numerical2dMatrix,
-                Iterable[Symbol],
+                Iterable[FloatVariable],
                 Iterable[Expression],
             ]
         ]
@@ -785,7 +809,7 @@ class Expression(
                 NumericalScalar,
                 NumericalArray,
                 Numerical2dMatrix,
-                Iterable[Symbol],
+                Iterable[FloatVariable],
             ]
         ],
     ):
@@ -801,7 +825,7 @@ class Expression(
             self.casadi_sx = ca.SX(data)
 
     def _from_iterable(
-        self, data: Union[NumericalArray, Numerical2dMatrix, Iterable[Symbol]]
+        self, data: Union[NumericalArray, Numerical2dMatrix, Iterable[FloatVariable]]
     ):
         x = len(data)
         if x == 0:
@@ -908,149 +932,149 @@ class Expression(
     def reshape(self, new_shape: Tuple[int, int]) -> Expression:
         return Expression(self.casadi_sx.reshape(new_shape))
 
-    def jacobian(self, symbols: Iterable[Symbol]) -> Expression:
+    def jacobian(self, variables: Iterable[FloatVariable]) -> Expression:
         """
-        Compute the Jacobian matrix of a vector of expressions with respect to a vector of symbols.
+        Compute the Jacobian matrix of a vector of expressions with respect to a vector of variables.
 
         This function calculates the Jacobian matrix, which is a matrix of all first-order
         partial derivatives of a vector of functions with respect to a vector of variables.
 
-        :param symbols: The symbols with respect to which the partial derivatives are taken.
+        :param variables: The variables with respect to which the partial derivatives are taken.
         :return: The Jacobian matrix as an Expression.
         """
         return Expression(
-            ca.jacobian(self.casadi_sx, Expression(data=symbols).casadi_sx)
+            ca.jacobian(self.casadi_sx, Expression(data=variables).casadi_sx)
         )
 
     def jacobian_dot(
-        self, symbols: Iterable[Symbol], symbols_dot: Iterable[Symbol]
+        self, variables: Iterable[FloatVariable], variables_dot: Iterable[FloatVariable]
     ) -> Expression:
         """
         Compute the total derivative of the Jacobian matrix.
 
         This function calculates the time derivative of a Jacobian matrix given
-        a set of expressions and symbols, along with their corresponding
+        a set of expressions and variables, along with their corresponding
         derivatives. For each element in the Jacobian matrix, this method
-        computes the total derivative based on the provided symbols and
+        computes the total derivative based on the provided variables and
         their time derivatives.
 
-        :param symbols: Iterable containing the symbols with respect to which
+        :param variables: Iterable containing the variables with respect to which
             the Jacobian is calculated.
-        :param symbols_dot: Iterable containing the time derivatives of the
-            corresponding symbols in `symbols`.
+        :param variables_dot: Iterable containing the time derivatives of the
+            corresponding variables in `variables`.
         :return: The time derivative of the Jacobian matrix.
         """
-        Jd = self.jacobian(symbols)
+        Jd = self.jacobian(variables)
         for i in range(Jd.shape[0]):
             for j in range(Jd.shape[1]):
-                Jd[i, j] = Jd[i, j].total_derivative(symbols, symbols_dot)
+                Jd[i, j] = Jd[i, j].total_derivative(variables, variables_dot)
         return Jd
 
     def jacobian_ddot(
         self,
-        symbols: Iterable[Symbol],
-        symbols_dot: Iterable[Symbol],
-        symbols_ddot: Iterable[Symbol],
+        variables: Iterable[FloatVariable],
+        variables_dot: Iterable[FloatVariable],
+        variables_ddot: Iterable[FloatVariable],
     ) -> Expression:
         """
         Compute the second-order total derivative of the Jacobian matrix.
 
         This function computes the Jacobian matrix of the given expressions with
-        respect to specified symbols and further calculates the second-order
+        respect to specified variables and further calculates the second-order
         total derivative for each element in the Jacobian matrix with respect to
-        the provided symbols, their first-order derivatives, and their second-order
+        the provided variables, their first-order derivatives, and their second-order
         derivatives.
 
-        :param symbols: An iterable of symbolic variables representing the
+        :param variables: An iterable of symbolic variables representing the
             primary variables with respect to which the Jacobian and derivatives
             are calculated.
-        :param symbols_dot: An iterable of symbolic variables representing the
+        :param variables_dot: An iterable of symbolic variables representing the
             first-order derivatives of the primary variables.
-        :param symbols_ddot: An iterable of symbolic variables representing the
+        :param variables_ddot: An iterable of symbolic variables representing the
             second-order derivatives of the primary variables.
         :return: A symbolic matrix representing the second-order total derivative
             of the Jacobian matrix of the provided expressions.
         """
-        Jdd = self.jacobian(symbols)
+        Jdd = self.jacobian(variables)
         for i in range(Jdd.shape[0]):
             for j in range(Jdd.shape[1]):
                 Jdd[i, j] = Jdd[i, j].second_order_total_derivative(
-                    symbols, symbols_dot, symbols_ddot
+                    variables, variables_dot, variables_ddot
                 )
         return Jdd
 
     def total_derivative(
         self,
-        symbols: Iterable[Symbol],
-        symbols_dot: Iterable[Symbol],
+        variables: Iterable[FloatVariable],
+        variables_dot: Iterable[FloatVariable],
     ) -> Expression:
         """
-        Compute the total derivative of an expression with respect to given symbols and their derivatives
-        (dot symbols).
+        Compute the total derivative of an expression with respect to given variables and their derivatives
+        (dot variables).
 
-        The total derivative accounts for a dependent relationship where the specified symbols represent
-        the variables of interest, and the dot symbols represent the time derivatives of those variables.
+        The total derivative accounts for a dependent relationship where the specified variables represent
+        the variables of interest, and the dot variables represent the time derivatives of those variables.
 
-        :param symbols: Iterable of symbols with respect to which the derivative is computed.
-        :param symbols_dot: Iterable of dot symbols representing the derivatives of the symbols.
+        :param variables: Iterable of variables with respect to which the derivative is computed.
+        :param variables_dot: Iterable of dot variables representing the derivatives of the variables.
         :return: The expression resulting from the total derivative computation.
         """
-        symbols = Expression(data=symbols)
-        symbols_dot = Expression(data=symbols_dot)
+        variables = Expression(data=variables)
+        variables_dot = Expression(data=variables_dot)
         return Expression(
-            ca.jtimes(self.casadi_sx, symbols.casadi_sx, symbols_dot.casadi_sx)
+            ca.jtimes(self.casadi_sx, variables.casadi_sx, variables_dot.casadi_sx)
         )
 
     def second_order_total_derivative(
         self,
-        symbols: Iterable[Symbol],
-        symbols_dot: Iterable[Symbol],
-        symbols_ddot: Iterable[Symbol],
+        variables: Iterable[FloatVariable],
+        variables_dot: Iterable[FloatVariable],
+        variables_ddot: Iterable[FloatVariable],
     ) -> Expression:
         """
-        Computes the second-order total derivative of an expression with respect to a set of symbols.
+        Computes the second-order total derivative of an expression with respect to a set of variables.
 
         This function takes an expression and computes its second-order total derivative
-        using provided symbols, their first-order derivatives, and their second-order
+        using provided variables, their first-order derivatives, and their second-order
         derivatives. The computation internally constructs a Hessian matrix of the
         expression and multiplies it by a vector that combines the provided derivative
         data.
 
-        :param symbols: Iterable containing the symbols with respect to which the derivative is calculated.
-        :param symbols_dot: Iterable containing the first-order derivatives of the symbols.
-        :param symbols_ddot: Iterable containing the second-order derivatives of the symbols.
+        :param variables: Iterable containing the variables with respect to which the derivative is calculated.
+        :param variables_dot: Iterable containing the first-order derivatives of the variables.
+        :param variables_ddot: Iterable containing the second-order derivatives of the variables.
         :return: The computed second-order total derivative, returned as an `Expression`.
         """
-        symbols = Expression(data=symbols)
-        symbols_dot = Expression(data=symbols_dot)
-        symbols_ddot = Expression(data=symbols_ddot)
+        variables = Expression(data=variables)
+        variables_dot = Expression(data=variables_dot)
+        variables_ddot = Expression(data=variables_ddot)
         v = []
-        for i in range(len(symbols)):
-            for j in range(len(symbols)):
+        for i in range(len(variables)):
+            for j in range(len(variables)):
                 if i == j:
-                    v.append(symbols_ddot[i].casadi_sx)
+                    v.append(variables_ddot[i].casadi_sx)
                 else:
-                    v.append(symbols_dot[i].casadi_sx * symbols_dot[j].casadi_sx)
+                    v.append(variables_dot[i].casadi_sx * variables_dot[j].casadi_sx)
         v = Expression(data=v)
-        H = Expression(ca.hessian(self.casadi_sx, symbols.casadi_sx)[0])
+        H = Expression(ca.hessian(self.casadi_sx, variables.casadi_sx)[0])
         H = H.reshape((1, len(H) ** 2))
         return H.dot(v)
 
-    def hessian(self, symbols: Iterable[Symbol]) -> Expression:
+    def hessian(self, variables: Iterable[FloatVariable]) -> Expression:
         """
-        Calculate the Hessian matrix of a given expression with respect to specified symbols.
+        Calculate the Hessian matrix of a given expression with respect to specified variables.
 
         The function computes the second-order partial derivatives (Hessian matrix) for a
-        provided mathematical expression using the specified symbols. It utilizes a symbolic
+        provided mathematical expression using the specified variables. It utilizes a symbolic
         library for the internal operations to generate the Hessian.
 
-        :param symbols: An iterable containing the symbols with respect to which the derivatives
+        :param variables: An iterable containing the variables with respect to which the derivatives
             are calculated.
         :return: The resulting Hessian matrix as an expression.
         """
         expressions = self.casadi_sx
         return Expression(
-            ca.hessian(expressions, Expression(data=symbols).casadi_sx)[0]
+            ca.hessian(expressions, Expression(data=variables).casadi_sx)[0]
         )
 
     def inverse(self) -> Expression:
@@ -1083,7 +1107,7 @@ class Expression(
         return Expression(ca.kron(m1, m2))
 
 
-def create_symbols(names: Union[List[str], int]) -> List[Symbol]:
+def create_float_variables(names: Union[List[str], int]) -> List[FloatVariable]:
     """
     Generates a list of symbolic objects based on the input names or an integer value.
 
@@ -1092,13 +1116,13 @@ def create_symbols(names: Union[List[str], int]) -> List[Symbol]:
     `s_<index>` for numbers up to the given integer. If a list of names is
     provided, it generates symbolic objects for each name in the list.
 
-    :param names: A list of strings representing names of symbols or an integer
-        specifying the number of symbols to generate.
+    :param names: A list of strings representing names of variables or an integer
+        specifying the number of variables to generate.
     :return: A list of symbolic objects created based on the input.
     """
     if isinstance(names, int):
         names = [f"s_{i}" for i in range(names)]
-    return [Symbol(name=x) for x in names]
+    return [FloatVariable(name=x) for x in names]
 
 
 def diag(args: Union[List[ScalarData], Expression]) -> Expression:
@@ -1286,7 +1310,7 @@ def solve_for(
     :return: The estimated value of `x` that solves the equation for the given expression and target value.
     :raises ValueError: If no solution is found within the allowed number of steps or if convergence criteria are not met.
     """
-    f_dx = expression.jacobian(expression.free_symbols()).compile()
+    f_dx = expression.jacobian(expression.free_variables()).compile()
     f = expression.compile()
     x = start_value
     for tries in range(max_tries):
@@ -1324,7 +1348,7 @@ BinaryTrue = Expression(data=True)
 BinaryFalse = Expression(data=False)
 
 
-def is_false_symbol(expression: Expression) -> bool:
+def is_const_binary_false(expression: Expression) -> bool:
     try:
         return bool((expression == BinaryFalse).to_np())
     except Exception as e:
@@ -1334,10 +1358,10 @@ def is_false_symbol(expression: Expression) -> bool:
 def logic_and(*args: ScalarData) -> ScalarData:
     assert len(args) >= 2, "and must be called with at least 2 arguments"
     # if there is any False, return False
-    if [x for x in args if is_false_symbol(x)]:
+    if any(x for x in args if is_const_binary_false(x)):
         return BinaryFalse
     # filter all True
-    args = [x for x in args if not is_true_symbol(x)]
+    args = [x for x in args if not is_const_binary_true(x)]
     if len(args) == 0:
         return BinaryTrue
     if len(args) == 1:
@@ -1368,11 +1392,11 @@ def logic_all(args: Expression) -> ScalarData:
 def logic_or(*args: ScalarData, simplify: bool = True) -> ScalarData:
     assert len(args) >= 2, "and must be called with at least 2 arguments"
     # if there is any True, return True
-    if simplify and [x for x in args if is_true_symbol(x)]:
+    if simplify and any(x for x in args if is_const_binary_true(x)):
         return BinaryTrue
     # filter all False
     if simplify:
-        args = [x for x in args if not is_false_symbol(x)]
+        args = [x for x in args if not is_const_binary_false(x)]
     if len(args) == 0:
         return BinaryFalse
     if len(args) == 1:
@@ -1385,7 +1409,7 @@ def logic_or(*args: ScalarData, simplify: bool = True) -> ScalarData:
         )
 
 
-def is_true_symbol(expression: Expression) -> bool:
+def is_const_binary_true(expression: Expression) -> bool:
     try:
         equality_expr = expression == BinaryTrue
         return bool(equality_expr.to_np())
@@ -1400,16 +1424,30 @@ TrinaryTrue: Expression = Expression(data=1.0)
 
 
 def trinary_logic_not(expression: ScalarData) -> Expression:
+    """
+            |   Not
+    ------------------
+    True    |  False
+    Unknown | Unknown
+    False   |  True
+    """
     return Expression(data=1 - expression)
 
 
 def trinary_logic_and(*args: ScalarData) -> ScalarData:
+    """
+      AND   |  True   | Unknown | False
+    ------------------+---------+-------
+    True    |  True   | Unknown | False
+    Unknown | Unknown | Unknown | False
+    False   |  False  |  False  | False
+    """
     assert len(args) >= 2, "and must be called with at least 2 arguments"
     # if there is any False, return False
-    if [x for x in args if is_false_symbol(x)]:
+    if any(x for x in args if is_const_binary_false(x)):
         return TrinaryFalse
     # filter all True
-    args = [x for x in args if not is_true_symbol(x)]
+    args = [x for x in args if not is_const_binary_true(x)]
     if len(args) == 0:
         return TrinaryTrue
     if len(args) == 1:
@@ -1422,78 +1460,108 @@ def trinary_logic_and(*args: ScalarData) -> ScalarData:
         return trinary_logic_and(args[0], trinary_logic_and(*args[1:]))
 
 
-def trinary_logic_or(a: ScalarData, b: ScalarData) -> ScalarData:
-    cas_a = to_sx(a)
-    cas_b = to_sx(b)
-    return max(cas_a, cas_b)
+def trinary_logic_or(*args: ScalarData) -> ScalarData:
+    """
+       OR   |  True   | Unknown | False
+    ------------------+---------+-------
+    True    |  True   |  True   | True
+    Unknown |  True   | Unknown | Unknown
+    False   |  True   | Unknown | False
+    """
+    assert len(args) >= 2, "and must be called with at least 2 arguments"
+    # if there is any False, return False
+    if any(x for x in args if is_const_binary_true(x)):
+        return TrinaryTrue
+    # filter all True
+    args = [x for x in args if not is_const_binary_true(x)]
+    if len(args) == 0:
+        return TrinaryFalse
+    if len(args) == 1:
+        return args[0]
+    if len(args) == 2:
+        cas_a = to_sx(args[0])
+        cas_b = to_sx(args[1])
+        return max(cas_a, cas_b)
+    else:
+        return trinary_logic_or(args[0], trinary_logic_or(*args[1:]))
 
 
-def is_trinary_true(expression: Union[Symbol, Expression]) -> Expression:
-    return expression == TrinaryTrue
-
-
-def is_trinary_true_symbol(expression: Expression) -> bool:
+def is_const_trinary_true(expression: Expression) -> bool:
+    """
+    Checks if the expression has not free variables and is equal to TrinaryTrue.
+    If you need this check as an expression use expression == TrinaryTrue.
+    """
     try:
         return bool((expression == TrinaryTrue).to_np())
     except Exception as e:
         return False
 
 
-def is_trinary_false(expression: Union[Symbol, Expression]) -> Expression:
-    return expression == TrinaryFalse
-
-
-def is_trinary_false_symbol(expression: Expression) -> bool:
+def is_const_trinary_false(expression: Expression) -> bool:
+    """
+    Checks if the expression has not free variables and is equal to TrinaryFalse.
+    If you need this check as an expression use expression == TrinaryFalse.
+    """
     try:
         return bool((expression == TrinaryFalse).to_np())
     except Exception as e:
         return False
 
 
-def is_trinary_unknown(expression: Union[Symbol, Expression]) -> Expression:
-    return expression == TrinaryUnknown
-
-
-def is_trinary_unknown_symbol(expression: Expression) -> bool:
+def is_const_trinary_unknown(expression: Expression) -> bool:
+    """
+    Checks if the expression has not free variables and is equal to TrinaryUnknown.
+    If you need this check as an expression use expression == TrinaryUnknown.
+    """
     try:
         return bool((expression == TrinaryUnknown).to_np())
     except Exception as e:
         return False
 
 
-def replace_with_trinary_logic(expression: Expression) -> Expression:
+def trinary_logic_to_str(expression: Expression) -> str:
     """
-    Converts a given logical expression into a three-valued logic expression.
+    Converts a trinary logic expression into its string representation.
 
-    This function recursively processes a logical expression and replaces it
-    with its three-valued logic equivalent. The three-valued logic can represent
-    true, false, or an indeterminate state. The method identifies specific
-    operations like NOT, AND, and OR and applies three-valued logic rules to them.
+    This function processes an expression with trinary logic values (True, False,
+    Unknown) and translates it into a comprehensible string format. It takes into
+    account the logical operations involved and recursively evaluates the components
+    if necessary. The function handles variables representing trinary logic values,
+    as well as logical constructs such as "and", "or", and "not". If the expression
+    cannot be evaluated, an exception is raised.
 
-    :param expression: The logical expression to be converted.
-    :return: The converted logical expression in three-valued logic.
+    :param expression: The trinary logic expression to be converted into a string
+        representation.
+    :return: A string representation of the trinary logic expression, displaying
+        the appropriate logical variables and structure.
+    :raises SpatialTypesError: If the provided expression cannot be converted
+        into a string representation.
     """
     cas_expr = to_sx(expression)
+
+    # Constant case
     if cas_expr.n_dep() == 0:
-        if is_true_symbol(cas_expr):
-            return TrinaryTrue
-        if is_false_symbol(cas_expr):
-            return TrinaryFalse
-        return expression
-    op = cas_expr.op()
-    if op == ca.OP_NOT:
-        return trinary_logic_not(replace_with_trinary_logic(cas_expr.dep(0)))
-    if op == ca.OP_AND:
-        return trinary_logic_and(
-            replace_with_trinary_logic(cas_expr.dep(0)),
-            replace_with_trinary_logic(cas_expr.dep(1)),
-        )
-    if op == ca.OP_OR:
-        return trinary_logic_or(
-            replace_with_trinary_logic(cas_expr.dep(0)),
-            replace_with_trinary_logic(cas_expr.dep(1)),
-        )
-    return expression
+        if is_const_trinary_true(cas_expr):
+            return "True"
+        if is_const_trinary_false(cas_expr):
+            return "False"
+        if is_const_trinary_unknown(cas_expr):
+            return "Unknown"
+        return f'"{expression}"'
+
+    match cas_expr.op():
+        case ca.OP_SUB:  # trinary "not" is 1-x
+            return f"not {trinary_logic_to_str(cas_expr.dep(1))}"
+        case ca.OP_FMIN:  # trinary "and" is min(left, right)
+            left = trinary_logic_to_str(cas_expr.dep(0))
+            right = trinary_logic_to_str(cas_expr.dep(1))
+            return f"({left} and {right})"
+        case ca.OP_FMAX:  # trinary "or" is max(left, right)
+            left = trinary_logic_to_str(cas_expr.dep(0))
+            right = trinary_logic_to_str(cas_expr.dep(1))
+            return f"({left} or {right})"
+        case _:
+            raise SpatialTypesError(f"cannot convert {expression} to a string")
 
 
 # %% ifs
@@ -1503,11 +1571,11 @@ def _get_return_type(thing: Any):
     Used in "if" expressions.
 
     :param thing: The input whose type is analyzed.
-    :return: The appropriate type based on the input type. If the input type is `int`, `float`, or `Symbol`,
+    :return: The appropriate type based on the input type. If the input type is `int`, `float`, or `Variable`,
         the return type is `Expression`. Otherwise, the return type is the input's type.
     """
     return_type = type(thing)
-    if return_type in (int, float, Symbol):
+    if return_type in (int, float, FloatVariable):
         return Expression
     return return_type
 
@@ -2974,7 +3042,9 @@ class Vector3(
             self.casadi_sx = (self.safe_division(self.norm()) * a).casadi_sx
 
     def project_to_cone(
-        self, frame_V_cone_axis: Vector3, cone_theta: Union[Symbol, float, Expression]
+        self,
+        frame_V_cone_axis: Vector3,
+        cone_theta: Union[FloatVariable, float, Expression],
     ) -> Vector3:
         """
         Projects a given vector onto the boundary of a cone defined by its axis and angle.
@@ -3443,7 +3513,7 @@ NumericalArray = Union[np.ndarray, Iterable[NumericalScalar]]
 Numerical2dMatrix = Union[np.ndarray, Iterable[NumericalArray]]
 NumericalData = Union[NumericalScalar, NumericalArray, Numerical2dMatrix]
 
-SymbolicScalar = Union[Symbol, Expression]
+SymbolicScalar = Union[FloatVariable, Expression]
 SymbolicArray = Union[Expression, Point3, Vector3, Quaternion]
 Symbolic2dMatrix = Union[Expression, RotationMatrix, TransformationMatrix]
 SymbolicData = Union[SymbolicScalar, SymbolicArray, Symbolic2dMatrix]
@@ -3476,7 +3546,7 @@ GenericRotatableSpatialType = TypeVar(
 
 GenericSymbolicType = TypeVar(
     "GenericSymbolicType",
-    Symbol,
+    FloatVariable,
     Expression,
     Point3,
     Vector3,

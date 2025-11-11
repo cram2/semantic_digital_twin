@@ -2,16 +2,67 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing_extensions import Dict, Any
 
 from krrood.adapters.json_serializer import SubclassJSONSerializer
+from typing_extensions import Dict, Any
 
+from .world_entity import WorldEntity
 from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import UsageError
 from ..spatial_types import spatial_types as cas
 from ..spatial_types.derivatives import Derivatives, DerivativeMap
-from ..spatial_types.symbol_manager import symbol_manager
-from .world_entity import WorldEntity
+
+
+@dataclass(eq=False)
+class PositionVariable(cas.FloatVariable):
+    """
+    Describes the position of a degree of freedom.
+    """
+    name: PrefixedName = field(kw_only=True)
+    dof: DegreeOfFreedom = field(kw_only=True)
+    """ Backreference """
+
+    def resolve(self) -> float:
+        return self.dof._world.state[self.dof.name].position
+
+
+@dataclass(eq=False)
+class VelocityVariable(cas.FloatVariable):
+    """
+    Describes the velocity of a degree of freedom.
+    """
+    name: PrefixedName = field(kw_only=True)
+    dof: DegreeOfFreedom = field(kw_only=True)
+    """ Backreference """
+
+    def resolve(self) -> float:
+        return self.dof._world.state[self.dof.name].velocity
+
+
+@dataclass(eq=False)
+class AccelerationVariable(cas.FloatVariable):
+    """
+    Describes the acceleration of a degree of freedom.
+    """
+    name: PrefixedName = field(kw_only=True)
+    dof: DegreeOfFreedom = field(kw_only=True)
+    """ Backreference """
+
+    def resolve(self) -> float:
+        return self.dof._world.state[self.dof.name].acceleration
+
+
+@dataclass(eq=False)
+class JerkVariable(cas.FloatVariable):
+    """
+    Describes the jerk of a degree of freedom.
+    """
+    name: PrefixedName = field(kw_only=True)
+    dof: DegreeOfFreedom = field(kw_only=True)
+    """ Backreference """
+
+    def resolve(self) -> float:
+        return self.dof._world.state[self.dof.name].jerk
 
 
 @dataclass
@@ -30,7 +81,7 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
     Lower and upper bounds for each derivative
     """
 
-    symbols: DerivativeMap[cas.Symbol] = field(
+    variables: DerivativeMap[cas.FloatVariable] = field(
         default_factory=DerivativeMap, init=False
     )
     """
@@ -52,14 +103,23 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
         self.lower_limits = self.lower_limits or DerivativeMap()
         self.upper_limits = self.upper_limits or DerivativeMap()
 
-    def create_and_register_symbols(self):
+    def create_variables(self):
+        """
+        Creates a variable for each derivative, that refer to the corresponding values of this dof.
+        """
         assert self._world is not None
-        for derivative in Derivatives.range(Derivatives.position, Derivatives.jerk):
-            s = symbol_manager.register_symbol_provider(
-                f"{self.name}_{derivative}",
-                lambda d=derivative: self._world.state[self.name][d],
-            )
-            self.symbols.data[derivative] = s
+        self.variables.data[Derivatives.position] = PositionVariable(
+            name=PrefixedName("position", prefix=str(self.name)), dof=self
+        )
+        self.variables.data[Derivatives.velocity] = VelocityVariable(
+            name=PrefixedName("velocity", prefix=str(self.name)), dof=self
+        )
+        self.variables.data[Derivatives.acceleration] = AccelerationVariable(
+            name=PrefixedName("acceleration", prefix=str(self.name)), dof=self
+        )
+        self.variables.data[Derivatives.jerk] = JerkVariable(
+            name=PrefixedName("jerk", prefix=str(self.name)), dof=self
+        )
 
     def has_position_limits(self) -> bool:
         try:
@@ -94,12 +154,12 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
         result = DegreeOfFreedom(
             lower_limits=deepcopy(self.lower_limits),
             upper_limits=deepcopy(self.upper_limits),
-            name=self.name,
+            name=deepcopy(self.name),
             has_hardware_interface=self.has_hardware_interface,
         )
         result._world = self._world
         # there can't be two symbols with the same name anyway
-        result.symbols = self.symbols
+        result.variables = self.variables
         return result
 
     def _overwrite_dof_limits(
@@ -118,7 +178,7 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
         :param new_upper_limits: A mapping of new upper limits for the specified derivatives.
             If a new upper limit is None, no change is applied for that derivative.
         """
-        if not isinstance(self.symbols.position, cas.Symbol):
+        if not isinstance(self.variables.position, cas.FloatVariable):
             raise UsageError(
                 "Cannot overwrite limits of mimic DOFs, use .raw_dof._overwrite_dof_limits instead."
             )

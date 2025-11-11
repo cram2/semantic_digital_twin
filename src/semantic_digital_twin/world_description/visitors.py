@@ -1,8 +1,10 @@
 from __future__ import annotations
-import rustworkx as rx
+
 from typing import Tuple
 
+import rustworkx as rx
 from typing_extensions import TYPE_CHECKING
+
 from .world_entity import Body, Connection
 
 if TYPE_CHECKING:
@@ -13,6 +15,7 @@ class CollisionBodyCollector(rx.visit.DFSVisitor):
     """
     Collects all bodies with collision geometries in the kinematic structure of the world.
     """
+
     def __init__(self, world: World):
         self.world = world
         self.bodies = []
@@ -29,10 +32,12 @@ class CollisionBodyCollector(rx.visit.DFSVisitor):
         if e.is_controlled:
             raise rx.visit.PruneSearch()
 
+
 class ConnectionCollector(rx.visit.DFSVisitor):
     """
     Collects all connections in the kinematic structure of the world.
     """
+
     def __init__(self, world: World):
         self.world = world
         self.connections = []

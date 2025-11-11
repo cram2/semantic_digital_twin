@@ -15,6 +15,8 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
         return hash((self.prefix, self.name))
 
     def __str__(self):
+        if self.prefix is None:
+            return self.name
         return f"{self.prefix}/{self.name}"
 
     def __eq__(self, other):

@@ -19,7 +19,7 @@ from semantic_digital_twin.spatial_types import (
     Vector3,
     Quaternion,
     RotationMatrix,
-    Symbol,
+    FloatVariable,
 )
 from semantic_digital_twin.spatial_types.spatial_types import TransformationMatrix
 from semantic_digital_twin.world import World
@@ -88,7 +88,7 @@ def test_point3_json_serialization():
 
 def test_point3_json_serialization_with_expression():
     body = Body(name=PrefixedName("body"))
-    point = Point3(Symbol(name="muh"), reference_frame=body)
+    point = Point3(FloatVariable(name=PrefixedName("muh")), reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
         point.to_json()
 
@@ -113,21 +113,25 @@ def test_KinematicStructureEntityNotInKwargs2():
 
 def test_vector3_json_serialization_with_expression():
     body = Body(name=PrefixedName("body"))
-    vector = Vector3(Symbol(name="muh"), reference_frame=body)
+    vector = Vector3(FloatVariable(name=PrefixedName("muh")), reference_frame=body)
     with pytest.raises(SpatialTypeNotJsonSerializable):
         vector.to_json()
 
 
 def test_quaternion_json_serialization_with_expression():
     body = Body(name=PrefixedName("body"))
-    quaternion = Quaternion(Symbol(name="muh"), reference_frame=body)
+    quaternion = Quaternion(
+        FloatVariable(name=PrefixedName("muh")), reference_frame=body
+    )
     with pytest.raises(SpatialTypeNotJsonSerializable):
         quaternion.to_json()
 
 
 def test_rotation_matrix_json_serialization_with_expression():
     body = Body(name=PrefixedName("body"))
-    rotation = RotationMatrix.from_rpy(roll=Symbol(name="muh"), reference_frame=body)
+    rotation = RotationMatrix.from_rpy(
+        roll=FloatVariable(name=PrefixedName("muh")), reference_frame=body
+    )
     with pytest.raises(SpatialTypeNotJsonSerializable):
         rotation.to_json()
 
@@ -135,7 +139,7 @@ def test_rotation_matrix_json_serialization_with_expression():
 def test_transformation_matrix_json_serialization_with_expression():
     body = Body(name=PrefixedName("body"))
     transform = TransformationMatrix.from_xyz_rpy(
-        Symbol(name="muh"), reference_frame=body
+        FloatVariable(name=PrefixedName("muh")), reference_frame=body
     )
     with pytest.raises(SpatialTypeNotJsonSerializable):
         transform.to_json()

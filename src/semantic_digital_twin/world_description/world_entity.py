@@ -726,15 +726,16 @@ class Connection(WorldEntity, SubclassJSONSerializer):
     """
 
     parent_T_connection_expression: TransformationMatrix = field(default=None)
-    connection_T_child_expression: TransformationMatrix = field(default=None)
+    _connection_T_child_expression: TransformationMatrix = field(default=None)
     """
     The origin expression of a connection is split into 2 transforms:
     1. parent_T_connection describes the pose of the connection and is always constant.
        It typically describes the fixed part of the origin expression, equivalent to the origin tag in urdf. 
        For example, it is the point about which a revolute joint rotates.
-    2. connection_T_child describes the pose of the child relative to the connection.
+    2. _connection_T_child describes the pose of the child relative to the connection.
        This typically contains only the expressions that describe how the degrees of freedom move the child.
        For example, it describes how the angle of a revolute joint affects the child pose.
+       It is private mostly to avoid ORM logging.
 
     This split is necessary for copying Connections, because they need parent_T_connection as an input parameter and 
     connection_T_child is generated in the __post_init__ method.
@@ -770,7 +771,7 @@ class Connection(WorldEntity, SubclassJSONSerializer):
 
     @property
     def origin_expression(self) -> TransformationMatrix:
-        return self.parent_T_connection_expression @ self.connection_T_child_expression
+        return self.parent_T_connection_expression @ self._connection_T_child_expression
 
     @property
     def active_dofs(self) -> List[DegreeOfFreedom]:
@@ -799,8 +800,8 @@ class Connection(WorldEntity, SubclassJSONSerializer):
         # If I use default factories, I'd have to complicate the from_json, because I couldn't blindly pass these args
         if self.parent_T_connection_expression is None:
             self.parent_T_connection_expression = TransformationMatrix()
-        if self.connection_T_child_expression is None:
-            self.connection_T_child_expression = TransformationMatrix()
+        if self._connection_T_child_expression is None:
+            self._connection_T_child_expression = TransformationMatrix()
 
         if (
             self.parent_T_connection_expression.reference_frame is not None
@@ -811,7 +812,7 @@ class Connection(WorldEntity, SubclassJSONSerializer):
             )
 
         self.parent_T_connection_expression.reference_frame = self.parent
-        self.connection_T_child_expression.child_frame = self.child
+        self._connection_T_child_expression.child_frame = self.child
 
     @classmethod
     def _generate_default_name(

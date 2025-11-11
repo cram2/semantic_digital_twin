@@ -24,6 +24,7 @@ import semantic_digital_twin.robots.abstract_robot
 import semantic_digital_twin.semantic_annotations.semantic_annotations
 import semantic_digital_twin.world
 import semantic_digital_twin.world_description.connections
+import semantic_digital_twin.world_description.degree_of_freedom
 import semantic_digital_twin.world_description.geometry
 import semantic_digital_twin.world_description.shape_collection
 import semantic_digital_twin.world_description.world_entity
@@ -37,6 +38,41 @@ from krrood.ormatic.custom_types import TypeType
 
 class Base(DeclarativeBase):
     type_mappings = {}
+
+
+class AccelerationVariableDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom.AccelerationVariable
+    ],
+):
+
+    __tablename__ = "AccelerationVariableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    name_id: Mapped[int] = mapped_column(
+        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    dof_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    name: Mapped[PrefixedNameDAO] = relationship(
+        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
+    )
+    dof: Mapped[DegreeOfFreedomMappingDAO] = relationship(
+        "DegreeOfFreedomMappingDAO",
+        uselist=False,
+        foreign_keys=[dof_id],
+        post_update=True,
+    )
 
 
 class BoundingBoxDAO(
@@ -182,6 +218,41 @@ class HasDrawersDAO(
     )
 
 
+class JerkVariableDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom.JerkVariable
+    ],
+):
+
+    __tablename__ = "JerkVariableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    name_id: Mapped[int] = mapped_column(
+        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    dof_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    name: Mapped[PrefixedNameDAO] = relationship(
+        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
+    )
+    dof: Mapped[DegreeOfFreedomMappingDAO] = relationship(
+        "DegreeOfFreedomMappingDAO",
+        uselist=False,
+        foreign_keys=[dof_id],
+        post_update=True,
+    )
+
+
 class Point3MappingDAO(
     Base, DataAccessObject[semantic_digital_twin.orm.model.Point3Mapping]
 ):
@@ -206,6 +277,41 @@ class Point3MappingDAO(
         "KinematicStructureEntityDAO",
         uselist=False,
         foreign_keys=[reference_frame_id],
+        post_update=True,
+    )
+
+
+class PositionVariableDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom.PositionVariable
+    ],
+):
+
+    __tablename__ = "PositionVariableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    name_id: Mapped[int] = mapped_column(
+        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    dof_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    name: Mapped[PrefixedNameDAO] = relationship(
+        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
+    )
+    dof: Mapped[DegreeOfFreedomMappingDAO] = relationship(
+        "DegreeOfFreedomMappingDAO",
+        uselist=False,
+        foreign_keys=[dof_id],
         post_update=True,
     )
 
@@ -771,6 +877,41 @@ class Vector3MappingDAO(
     )
 
 
+class VelocityVariableDAO(
+    Base,
+    DataAccessObject[
+        semantic_digital_twin.world_description.degree_of_freedom.VelocityVariable
+    ],
+):
+
+    __tablename__ = "VelocityVariableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    name_id: Mapped[int] = mapped_column(
+        ForeignKey("PrefixedNameDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    dof_id: Mapped[int] = mapped_column(
+        ForeignKey("DegreeOfFreedomMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    name: Mapped[PrefixedNameDAO] = relationship(
+        "PrefixedNameDAO", uselist=False, foreign_keys=[name_id], post_update=True
+    )
+    dof: Mapped[DegreeOfFreedomMappingDAO] = relationship(
+        "DegreeOfFreedomMappingDAO",
+        uselist=False,
+        foreign_keys=[dof_id],
+        post_update=True,
+    )
+
+
 class WorldMappingDAO(
     Base, DataAccessObject[semantic_digital_twin.orm.model.WorldMapping]
 ):
@@ -880,11 +1021,6 @@ class ConnectionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    connection_T_child_expression_id: Mapped[int] = mapped_column(
-        ForeignKey("TransformationMatrixMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
 
     parent: Mapped[KinematicStructureEntityDAO] = relationship(
         "KinematicStructureEntityDAO",
@@ -903,14 +1039,6 @@ class ConnectionDAO(
             "TransformationMatrixMappingDAO",
             uselist=False,
             foreign_keys=[parent_T_connection_expression_id],
-            post_update=True,
-        )
-    )
-    connection_T_child_expression: Mapped[TransformationMatrixMappingDAO] = (
-        relationship(
-            "TransformationMatrixMappingDAO",
-            uselist=False,
-            foreign_keys=[connection_T_child_expression_id],
             post_update=True,
         )
     )

@@ -878,6 +878,7 @@ class World:
             logger.debug("Trying to remove a dof that is not part of this world.")
             return
         self._remove_degree_of_freedom(dof)
+        self.get_degree_of_freedom_by_name.cache_clear()
 
     @atomic_world_modification(modification=RemoveDegreeOfFreedomModification)
     def _remove_degree_of_freedom(self, dof: DegreeOfFreedom) -> None:

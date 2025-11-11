@@ -248,8 +248,8 @@ class InverseKinematicsSolver:
             raise QPSolverException(exitflag)
 
         return (
-            xstar[: len(qp_problem.active_symbols)],
-            xstar[len(qp_problem.active_symbols) :],
+            xstar[: len(qp_problem.active_variables)],
+            xstar[len(qp_problem.active_variables) :],
         )
 
     def _check_convergence(self, velocity: np.ndarray, slack: np.ndarray) -> bool:
@@ -310,8 +310,8 @@ class QPProblem:
         (
             self.active_dofs,
             self.passive_dofs,
-            self.active_symbols,
-            self.passive_symbols,
+            self.active_variables,
+            self.passive_variables,
         ) = self._extract_dofs()
         self._setup_constraints()
         self._setup_weights()
@@ -320,11 +320,14 @@ class QPProblem:
     def _extract_dofs(
         self,
     ) -> Tuple[
-        list[DegreeOfFreedom], list[DegreeOfFreedom], list[cas.Symbol], list[cas.Symbol]
+        list[DegreeOfFreedom],
+        list[DegreeOfFreedom],
+        list[cas.FloatVariable],
+        list[cas.FloatVariable],
     ]:
         """
         Extract active and passive DOFs from the kinematic chain.
-        :return: Active Dofs, Passive Dofs, Active Symbols, Passive Symbols.
+        :return: Active Dofs, Passive Dofs, Active Variables, Passive Variables.
         """
         active_dofs_set = set()
         passive_dofs_set = set()
@@ -342,10 +345,10 @@ class QPProblem:
             sorted(passive_dofs_set, key=lambda d: str(d.name))
         )
 
-        active_symbols = [dof.symbols.position for dof in active_dofs]
-        passive_symbols = [dof.symbols.position for dof in passive_dofs]
+        active_variables = [dof.variables.position for dof in active_dofs]
+        passive_variables = [dof.variables.position for dof in passive_dofs]
 
-        return active_dofs, passive_dofs, active_symbols, passive_symbols
+        return active_dofs, passive_dofs, active_variables, passive_variables
 
     def _setup_constraints(self):
         """Setup all constraints for the QP problem."""
@@ -367,7 +370,7 @@ class QPProblem:
 
         # Goal constraints
         self.eq_bound_expr, self.neq_matrix = (
-            self.constraint_builder.build_goal_constraints(self.active_symbols)
+            self.constraint_builder.build_goal_constraints(self.active_variables)
         )
 
         # Combine constraints
@@ -388,13 +391,13 @@ class QPProblem:
 
     def _compile_functions(self):
         """Compile all symbolic expressions into functions."""
-        symbol_args = [self.active_symbols, self.passive_symbols]
+        variable_args = [self.active_variables, self.passive_variables]
 
-        self.l_f = self.l.compile(symbol_args)
-        self.u_f = self.u.compile(symbol_args)
-        self.A_f = self.A.compile(symbol_args)
-        self.quadratic_weights_f = self.quadratic_weights.compile(symbol_args)
-        self.linear_weights_f = self.linear_weights.compile(symbol_args)
+        self.l_f = self.l.compile(variable_args)
+        self.u_f = self.u.compile(variable_args)
+        self.A_f = self.A.compile(variable_args)
+        self.quadratic_weights_f = self.quadratic_weights.compile(variable_args)
+        self.linear_weights_f = self.linear_weights.compile(variable_args)
 
     def evaluate_at_state(self, solver_state) -> QPMatrices:
         """Evaluate QP matrices at the current solver state."""
@@ -464,8 +467,8 @@ class ConstraintBuilder:
             ul = cas.min(self.maximum_velocity, dof.upper_limits.velocity)
 
             if dof.has_position_limits():
-                ll = cas.max(dof.lower_limits.position - dof.symbols.position, ll)
-                ul = cas.min(dof.upper_limits.position - dof.symbols.position, ul)
+                ll = cas.max(dof.lower_limits.position - dof.variables.position, ll)
+                ul = cas.min(dof.upper_limits.position - dof.variables.position, ul)
 
             lower_constraints.append(ll)
             upper_constraints.append(ul)
@@ -478,7 +481,7 @@ class ConstraintBuilder:
         return cas.Expression(lower_constraints), cas.Expression(upper_constraints)
 
     def build_goal_constraints(
-        self, active_symbols: List[cas.Symbol]
+        self, active_variables: List[cas.FloatVariable]
     ) -> Tuple[cas.Expression, cas.Expression]:
         """Build position and rotation goal constraints."""
         root_T_tip = self.world.compose_forward_kinematics_expression(
@@ -493,7 +496,7 @@ class ConstraintBuilder:
         current_expr = cas.Expression.vstack([position_state, rotation_state])
         eq_bound_expr = cas.Expression.vstack([position_error, rotation_error])
 
-        J = current_expr.jacobian(active_symbols)
+        J = current_expr.jacobian(active_variables)
         neq_matrix = cas.Expression.hstack(
             [J * self.dt, cas.Expression.eye(6) * self.dt]
         )

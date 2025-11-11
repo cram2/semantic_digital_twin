@@ -1,5 +1,5 @@
 from .spatial_types import (
-    Symbol,
+    FloatVariable,
     Expression,
     RotationMatrix,
     Vector3,
