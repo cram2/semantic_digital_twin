@@ -306,6 +306,26 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         self._world.state[self.dof.name].jerk = value / self.multiplier
         self._world.notify_state_change()
 
+    def copy_for_world(self, world: World):
+        (
+            other_parent,
+            other_child,
+            parent_T_connection_expression,
+            connection_T_child_expression,
+        ) = self._find_references_in_world(world)
+
+        return self.__class__(
+            name=PrefixedName(self.name.name, self.name.prefix),
+            parent=other_parent,
+            child=other_child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            dof_name=PrefixedName(self.dof_name.name, self.dof_name.prefix),
+            axis=self.axis,
+            multiplier=self.multiplier,
+            offset=self.offset,
+        )
+
 
 @dataclass(eq=False)
 class PrismaticConnection(ActiveConnection1DOF):
@@ -553,6 +573,29 @@ class Connection6DoF(Connection):
         self._world.state[self.qz.name].position = orientation[2]
         self._world.state[self.qw.name].position = orientation[3]
         self._world.notify_state_change()
+
+    def copy_for_world(self, world: World):
+        (
+            other_parent,
+            other_child,
+            parent_T_connection_expression,
+            connection_T_child_expression,
+        ) = self._find_references_in_world(world)
+
+        return Connection6DoF(
+            name=deepcopy(self.name),
+            parent=other_parent,
+            child=other_child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            x_name=deepcopy(self.x_name),
+            y_name=deepcopy(self.y_name),
+            z_name=deepcopy(self.z_name),
+            qx_name=deepcopy(self.qx_name),
+            qy_name=deepcopy(self.qy_name),
+            qz_name=deepcopy(self.qz_name),
+            qw_name=deepcopy(self.qw_name),
+        )
 
 
 @dataclass(eq=False)
@@ -822,3 +865,26 @@ class OmniDrive(ActiveConnection, HasUpdateState):
         self.x_velocity.has_hardware_interface = value
         self.y_velocity.has_hardware_interface = value
         self.yaw.has_hardware_interface = value
+
+    def copy_for_world(self, world: World):
+        (
+            other_parent,
+            other_child,
+            parent_T_connection_expression,
+            connection_T_child_expression,
+        ) = self._find_references_in_world(world)
+
+        return OmniDrive(
+            name=deepcopy(self.name),
+            parent=other_parent,
+            child=other_child,
+            parent_T_connection_expression=parent_T_connection_expression,
+            connection_T_child_expression=connection_T_child_expression,
+            x_name=deepcopy(self.x_name),
+            y_name=deepcopy(self.y_name),
+            roll_name=deepcopy(self.roll_name),
+            pitch_name=deepcopy(self.pitch_name),
+            yaw_name=deepcopy(self.yaw_name),
+            x_velocity_name=deepcopy(self.x_velocity_name),
+            y_velocity_name=deepcopy(self.y_velocity_name),
+        )

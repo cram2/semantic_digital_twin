@@ -680,6 +680,24 @@ def test_copy_pr2(pr2_world):
     ).global_pose.to_np()[2, 3] == pytest.approx(1.472, abs=1e-3)
 
 
+def test_copy_connections(pr2_world):
+    pr2_copy = deepcopy(pr2_world)
+    for connection in pr2_world.connections:
+        pr2_copy_connection = pr2_copy.get_connection_by_name(connection.name)
+        assert connection.name == pr2_copy_connection.name
+        np.testing.assert_array_almost_equal(
+            connection.origin.to_np(), pr2_copy_connection.origin.to_np()
+        )
+
+
+def test_copy_two_times(pr2_world):
+    pr2_copy = deepcopy(pr2_world)
+    pr2_copy_2 = deepcopy(pr2_copy)
+    for connection in pr2_world.connections:
+        pr2_copy_connection = pr2_copy_2.get_connection_by_name(connection.name)
+        assert connection.name == pr2_copy_connection.name
+
+
 def test_add_entity_with_duplicate_name(world_setup):
     world, l1, l2, bf, r1, r2 = world_setup
     body_duplicate = Body(name=PrefixedName("l1"))
