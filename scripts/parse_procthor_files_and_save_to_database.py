@@ -6,26 +6,35 @@ import time
 from typing import List
 
 import tqdm
+from krrood.entity_query_language.symbol_graph import SymbolGraph
 from krrood.ormatic.dao import to_dao
 from krrood.ormatic.utils import drop_database
+from krrood.utils import recursive_subclasses
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from typing_extensions import TYPE_CHECKING
+
+
+from semantic_digital_twin.world import World
+
+sg = SymbolGraph()
+
 
 from semantic_digital_twin.adapters.fbx import FBXParser
 from semantic_digital_twin.adapters.procthor.procthor_pipelines import (
     dresser_factory_from_body,
 )
 from semantic_digital_twin.orm.ormatic_interface import *
+from semantic_digital_twin.adapters.procthor.procthor_semantic_annotations import (
+    ProcthorResolver,
+)
+from semantic_digital_twin.semantic_annotations.mixins import HasBody
 from semantic_digital_twin.pipeline.pipeline import (
     Pipeline,
     BodyFilter,
     BodyFactoryReplace,
     CenterLocalGeometryAndPreserveWorldPose,
 )
-
-if TYPE_CHECKING:
-    from semantic_digital_twin.world import World
 
 
 def remove_root_and_move_children_into_new_worlds(world: World) -> List[World]:
@@ -48,8 +57,10 @@ def remove_root_and_move_children_into_new_worlds(world: World) -> List[World]:
 
     with world.modify_world():
 
-        worlds = [world.copy_subgraph_to_new_world(child) for child in root_children]
+        worlds = [world.move_branch_to_new_world(child) for child in root_children]
         for world in worlds:
+            if world.root is None:
+                ...
             world.name = world.root.name.name
 
     return worlds
@@ -102,6 +113,12 @@ def parse_fbx_file_to_world_mapping_daos(fbx_file_path: str) -> List[WorldMappin
     worlds = remove_root_and_move_children_into_new_worlds(world)
 
     worlds = replace_dresser_meshes_with_factories(worlds, dresser_pattern)
+    resolver = ProcthorResolver(*[recursive_subclasses(HasBody)])
+    for world in worlds:
+        resolved = resolver.resolve(world.name)
+        if resolved:
+            with world.modify_world():
+                world.add_semantic_annotation(resolved(body=world.root))
 
     return [to_dao(world) for world in worlds]
 
@@ -116,11 +133,11 @@ def parse_procthor_files_and_save_to_database(
     TODO: Ensure all relevant files, even those not inside a grp, are parsed.
     """
     semantic_digital_twin_database_uri = os.environ.get(
-        "semantic_digital_twin_DATABASE_URI"
+        "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
     )
     assert (
         semantic_digital_twin_database_uri is not None
-    ), "Please set the semantic_digital_twin_DATABASE_URI environment variable."
+    ), "Please set the SEMANTIC_DIGITAL_TWIN_DATABASE_URI environment variable."
 
     procthor_root = os.path.join(os.path.expanduser("~"), "ai2thor")
     # procthor_root = os.path.join(os.path.expanduser("~"), "work", "ai2thor")
@@ -147,7 +164,7 @@ def parse_procthor_files_and_save_to_database(
         if not any([e in f for e in excluded_words]) and fbx_file_pattern.fullmatch(f)
     ]
     # Create database engine and session
-    engine = create_engine(f"mysql+pymysql://{semantic_digital_twin_database_uri}")
+    engine = create_engine(semantic_digital_twin_database_uri)
     session = Session(engine)
 
     if drop_existing_database:

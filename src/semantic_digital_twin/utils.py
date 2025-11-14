@@ -5,6 +5,7 @@ import os
 import weakref
 from copy import deepcopy
 from functools import lru_cache, wraps
+from typing import List
 
 try:
     from ament_index_python import PackageNotFoundError
@@ -203,3 +204,18 @@ def type_string_to_type(type_string: str) -> type:
     module_path, class_name = type_string.rsplit(".", 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)
+
+
+def camel_case_split(word: str) -> List[str]:
+    """
+    :param word: The word to split
+    :return: A set of strings where each string is a camel case split of the original word
+    """
+    result = []
+    start = 0
+    for i, c in enumerate(word[1:], 1):
+        if c.isupper():
+            result.append(word[start:i])
+            start = i
+    result.append(word[start:])
+    return result

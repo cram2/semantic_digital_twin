@@ -30,7 +30,7 @@ def conclusion_90574698325129464513441443063592862114(case) -> List[Handle]:
     def get_handles(case: World) -> Union[set, list, Handle]:
         """Get possible value(s) for World.semantic_annotations of types list/set of Handle"""
         return [
-            Handle(b)
+            Handle(body=b)
             for b in case.kinematic_structure_entities
             if "handle" in b.name.name.lower()
         ]
@@ -67,7 +67,7 @@ def conclusion_14920098271685635920637692283091167284(case) -> List[Container]:
         drawer_containers = set(children_of_prismatic_connections).intersection(
             set([fc.parent for fc in fixed_connections_with_handle_child])
         )
-        return [Container(b) for b in drawer_containers]
+        return [Container(body=b) for b in drawer_containers]
 
     return get_containers(case)
 
@@ -151,7 +151,7 @@ def conclusion_35528769484583703815352905256802298589(case) -> List[Cabinet]:
                 for d in drawers
                 if d.container.body in cabinet_drawer_container_bodies
             ]
-            cabinets.append(Cabinet(Container(ccb), cabinet_drawers))
+            cabinets.append(Cabinet(Container(body=ccb), drawers=cabinet_drawers))
 
         return cabinets
 
@@ -198,7 +198,7 @@ def conclusion_59112619694893607910753808758642808601(case) -> List[Door]:
             if c.parent in bodies_that_have_revolute_joints
         ]
         doors = [
-            Door(c.parent, [h for h in handles if h.body == c.child][0])
+            Door(body=c.parent, handle=[h for h in handles if h.body == c.child][0])
             for c in body_handle_connections
         ]
         return doors
@@ -238,7 +238,10 @@ def conclusion_10840634078579061471470540436169882059(case) -> List[Fridge]:
             and "fridge" in c.parent.name.name.lower()
         ]
         return [
-            Fridge(c.parent, fridge_doors[fridge_doors_bodies.index(c.child)])
+            Fridge(
+                container=c.parent,
+                door=fridge_doors[fridge_doors_bodies.index(c.child)],
+            )
             for c in fridge_door_connections
         ]
 

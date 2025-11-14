@@ -53,7 +53,11 @@ from ..world_description.connections import (
 from ..world_description.degree_of_freedom import DegreeOfFreedom
 from ..world_description.geometry import Scale
 from ..world_description.shape_collection import BoundingBoxCollection, ShapeCollection
-from ..world_description.world_entity import Body, Region, CollisionCheckingConfig
+from ..world_description.world_entity import (
+    Body,
+    Region,
+    KinematicStructureEntity,
+)
 
 id_generator = IDGenerator()
 
@@ -199,7 +203,7 @@ class HasDoorLikeFactories(ABC):
             elif isinstance(door_factory, DoubleDoorFactory):
                 self._add_double_door_to_world(
                     door_factory=door_factory,
-                    parent_T_door=door_transform,
+                    parent_T_double_door=door_transform,
                     parent_world=parent_world,
                 )
 
@@ -237,24 +241,85 @@ class HasDoorLikeFactories(ABC):
     def _add_double_door_to_world(
         self,
         door_factory: DoubleDoorFactory,
-        parent_T_door: TransformationMatrix,
+        parent_T_double_door: TransformationMatrix,
         parent_world: World,
     ):
         """
-        Adds a double door to the parent world with a fixed connection.
+        Adds a double door to the parent world by extracting the doors from the double door world, moving the
+        relevant bodies and semantic annotations to the parent world.
         :param door_factory: The factory used to create the double door.
-        :param parent_T_door: The transformation matrix defining the double door's position and orientation relative
+        :param parent_T_double_door: The transformation matrix defining the double door's position and orientation relative
         to the parent world.
         :param parent_world: The world to which the double door will be added.
         """
-        door_world = door_factory.create()
-        connection = FixedConnection(
-            parent=parent_world.root,
-            child=door_world.root,
-            parent_T_connection_expression=parent_T_door,
+        parent_root = parent_world.root
+        double_door_world = door_factory.create()
+        double_door = double_door_world.get_semantic_annotations_by_type(DoubleDoor)[0]
+        doors = [double_door.left_door, double_door.right_door]
+        new_worlds = []
+        new_connections = []
+        new_dofs = []
+        for door in doors:
+            new_world, new_connection, new_dof = self._move_door_into_new_world(
+                parent_root, door, parent_T_double_door
+            )
+            new_worlds.append(new_world)
+            new_connections.append(new_connection)
+            new_dofs.append(new_dof)
+
+        with parent_world.modify_world(), double_door_world.modify_world():
+            for new_dof in new_dofs:
+                parent_world.add_degree_of_freedom(new_dof)
+
+            for new_door_world, new_parent_C_left in zip(new_worlds, new_connections):
+                parent_world.merge_world(new_door_world, new_parent_C_left)
+
+            double_door_world.remove_semantic_annotation(double_door)
+            parent_world.add_semantic_annotation(double_door)
+
+    def _move_door_into_new_world(
+        self,
+        new_parent: KinematicStructureEntity,
+        door: Door,
+        parent_T_double_door: TransformationMatrix,
+    ):
+        """
+        Move a door from a double door world into a new world with a revolute connection.
+
+        :param new_parent: Entity that will be the new parent of the door
+        :param door: The door to be moved into a new world
+        :param parent_T_double_door: Original transform from parent to double door
+        :return:
+        """
+        double_door_world = door._world
+        door_hinge_kse = door.body.parent_kinematic_structure_entity
+        double_door_C_door: RevoluteConnection = door_hinge_kse.parent_connection
+        double_door_T_door = double_door_C_door.origin_expression
+        parent_T_door = parent_T_double_door @ double_door_T_door
+        old_dof = double_door_C_door.dof
+
+        new_dof = DegreeOfFreedom(
+            name=old_dof.name,
+            lower_limits=old_dof.lower_limits,
+            upper_limits=old_dof.upper_limits,
         )
 
-        parent_world.merge_world(door_world, connection)
+        new_parent_C_left = RevoluteConnection(
+            parent=new_parent,
+            child=door_hinge_kse,
+            parent_T_connection_expression=parent_T_door,
+            multiplier=double_door_C_door.multiplier,
+            offset=double_door_C_door.offset,
+            axis=double_door_C_door.axis,
+            dof_name=new_dof.name,
+        )
+
+        door_world = double_door_world.move_branch_to_new_world(door_hinge_kse)
+        with double_door_world.modify_world(), door_world.modify_world():
+            double_door_world.remove_semantic_annotation(door)
+            door_world.add_semantic_annotation(door)
+
+        return door_world, new_parent_C_left, new_dof
 
     def remove_doors_from_world(
         self, parent_world: World, wall_event_thickness: float = 0.1
@@ -976,7 +1041,7 @@ class DoubleDoorFactory(DoorLikeFactory[DoubleDoor], HasDoorLikeFactories):
             )
 
         semantic_double_door_annotation = DoubleDoor(
-            body=double_door_body, left_door=left_door, right_door=right_door
+            left_door=left_door, right_door=right_door
         )
         world.add_semantic_annotation(semantic_double_door_annotation)
         return world
@@ -1178,7 +1243,7 @@ class RoomFactory(SemanticAnnotationFactory[Room]):
 
         region = Region.from_3d_points(
             points_3d=self.floor_polytope,
-            name=PrefixedName(self.name.name + "_region", self.name.prefix),
+            name=PrefixedName(self.name.name + "_surface_region", self.name.prefix),
             reference_frame=room_body,
         )
         connection = FixedConnection(
@@ -1190,7 +1255,7 @@ class RoomFactory(SemanticAnnotationFactory[Room]):
 
         floor = Floor(
             name=PrefixedName(self.name.name + "_floor", self.name.prefix),
-            region=region,
+            supporting_surface=region,
         )
         world.add_semantic_annotation(floor)
         semantic_room_annotation = Room(name=self.name, floor=floor)

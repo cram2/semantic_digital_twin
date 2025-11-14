@@ -54,7 +54,7 @@ world = URDFParser.from_file(table).parse()
 Next, we create a semantic annotation that describes the table.
 
 ```{code-cell} ipython3
-table_semantic_annotation = Table([b for b in world.bodies if "top" in str(b.name)][0])
+table_semantic_annotation = Table(body=[b for b in world.bodies if "top" in str(b.name)][0])
 with world.modify_world():
     world.add_semantic_annotation(table_semantic_annotation)
 print(table_semantic_annotation)

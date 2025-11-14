@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import inspect
 import itertools
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from dataclasses import fields
 from functools import lru_cache
+from typing import ClassVar
 
 import numpy as np
 import trimesh
@@ -39,11 +40,11 @@ from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import ReferenceFrameMismatchError
 from ..spatial_types import spatial_types as cas
 from ..spatial_types.spatial_types import TransformationMatrix, Expression, Point3
-from ..utils import IDGenerator, type_string_to_type
+from ..utils import IDGenerator, type_string_to_type, camel_case_split
 
 if TYPE_CHECKING:
     from ..world_description.degree_of_freedom import DegreeOfFreedom
-    from ..world import World
+    from ..world import World, GenericSemanticAnnotation
 
 id_generator = IDGenerator()
 
@@ -122,6 +123,30 @@ class KinematicStructureEntity(WorldEntity, SubclassJSONSerializer, ABC):
     """
     The index of the entity in `_world.kinematic_structure`.
     """
+
+    @property
+    @abstractmethod
+    def combined_mesh(self) -> Optional[trimesh.Trimesh]:
+        """
+        Computes the combined mesh of this KinematicStructureEntity.
+        """
+
+    @property
+    def center_of_mass(self) -> Point3:
+        """
+        Computes the center of mass of this KinematicStructureEntity.
+        """
+        # Center of mass in the body's local frame (collision geometry)
+        com_local: np.ndarray[np.float64] = self.combined_mesh.center_mass  # (3,)
+        # Transform to world frame using the body's global pose
+        com = Point3(
+            x_init=com_local[0],
+            y_init=com_local[1],
+            z_init=com_local[2],
+            reference_frame=self,
+        )
+        world = self._world
+        return world.transform(com, world.root)
 
     @property
     def global_pose(self) -> TransformationMatrix:
@@ -213,6 +238,15 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
         self.collision.reference_frame = self
         self.collision.transform_all_shapes_to_own_frame()
         self.visual.transform_all_shapes_to_own_frame()
+
+    @property
+    def combined_mesh(self) -> Optional[trimesh.Trimesh]:
+        """
+        Computes the combined mesh of this KinematicStructureEntity.
+        """
+        if not self.collision:
+            return None
+        return self.collision.combined_mesh
 
     def get_collision_config(self) -> CollisionCheckingConfig:
         if self.temp_collision_config is not None:
@@ -374,6 +408,18 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
 
         return result
 
+    def get_semantic_annotations_by_type(
+        self, type_: Type[GenericSemanticAnnotation]
+    ) -> List[GenericSemanticAnnotation]:
+        """
+        Returns all semantic annotations of a given type which belong to this body.
+        :param type_: The type of semantic annotations to return.
+        :returns: A list of semantic annotations of the given type.
+        """
+        return list(
+            filter(lambda sem: isinstance(sem, type_), self._semantic_annotations)
+        )
+
 
 @dataclass(eq=False)
 class Region(KinematicStructureEntity):
@@ -392,12 +438,18 @@ class Region(KinematicStructureEntity):
     def __hash__(self):
         return id(self)
 
+    @property
+    def combined_mesh(self) -> Optional[trimesh.Trimesh]:
+        if not self.area:
+            return None
+        return self.area.combined_mesh
+
     @classmethod
     def from_3d_points(
         cls,
         name: PrefixedName,
         points_3d: List[Point3],
-        reference_frame: Optional[Body] = None,
+        reference_frame: Optional[KinematicStructureEntity] = None,
         minimum_thickness: float = 0.005,
         sv_ratio_tol: float = 1e-7,
     ) -> Self:
@@ -506,12 +558,27 @@ class SemanticAnnotation(WorldEntity, SubclassJSONSerializer):
         If you do not want to change the behavior, make sure to use @dataclass(eq=False) to decorate your class.
     """
 
+    _synonyms: ClassVar[Set[str]] = set()
+    """
+    Additional names that can be used to match this object.
+    """
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def class_name_tokens(cls) -> Set[str]:
+        """
+        :return: Set of tokens from the class name.
+        """
+        return set(n.lower() for n in camel_case_split(cls.__name__))
+
     def __post_init__(self):
         if self.name is None:
             self.name = PrefixedName(
                 name=f"{self.__class__.__name__}_{id_generator(self)}",
                 prefix=self._world.name if self._world is not None else None,
             )
+        for entity in self.kinematic_structure_entities:
+            entity._semantic_annotations.add(self)
 
     def __hash__(self):
         return hash(

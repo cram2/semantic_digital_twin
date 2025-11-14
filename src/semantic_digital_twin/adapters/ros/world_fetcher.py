@@ -13,6 +13,7 @@ from ...world_description.world_modification import (
     WorldModelModification,
     WorldModelModificationBlock,
 )
+from .messages import WorldModelSnapshot
 
 
 @dataclass
@@ -58,7 +59,8 @@ class FetchWorldServer:
         :param response: The service response containing success status and message.
         :return: The populated response.
         """
-        modifications_json = self.get_modifications_as_json()
+        # Return a payload that contains both the modification blocks and the current state snapshot
+        modifications_json = self.get_payload_as_json()
         response.success = True
         response.message = modifications_json
         return response
@@ -74,6 +76,33 @@ class FetchWorldServer:
             for block in self.world.get_world_model_manager().model_modification_blocks
         ]
         return json.dumps(modifications_list)
+
+    def get_payload_as_json(self) -> str:
+        """
+        Serialize both the world modification blocks and a snapshot of the current state.
+
+        The returned JSON has the structure:
+        {
+            "modifications": [ ... ],
+            "state": {
+                "prefixed_names": [ PrefixedNameJson, ... ],
+                "states": [ float, ... ]
+            }
+        }
+
+        This ensures a receiver can rebuild the model from the modification blocks
+        and then apply the most recent state values.
+        """
+        # Build snapshot object and serialize through its serializer
+        snapshot = WorldModelSnapshot(
+            modifications=list(
+                self.world.get_world_model_manager().model_modification_blocks
+            ),
+            prefixed_names=list(self.world.state.keys()),
+            states=list(self.world.state.positions),
+        )
+
+        return json.dumps(snapshot.to_json())
 
     def close(self):
         """
@@ -135,13 +164,25 @@ def fetch_world_from_service(
 
     tracker = KinematicStructureEntityKwargsTracker()
     kwargs = tracker.create_kwargs()
-    modifications = [
-        WorldModelModificationBlock.from_json(block_json, **kwargs)
-        for block_json in json.loads(response.message)
-    ]
+
+    # New format is an object {"modifications": [...], "state": {...}}.
+    payload = json.loads(response.message)
+    snapshot = WorldModelSnapshot.from_json(payload, **kwargs)
+    modifications = list(snapshot.modifications)
 
     world = World()
     for modification_block in modifications:
         modification_block.apply(world)
+
+    # Apply latest state snapshot after all modification blocks
+    if snapshot.prefixed_names and snapshot.states:
+        indices = [world.state._index.get(n) for n in snapshot.prefixed_names]
+        assign_pairs = [
+            (i, float(s)) for i, s in zip(indices, snapshot.states) if i is not None
+        ]
+        if assign_pairs:
+            for i, s in assign_pairs:
+                world.state.data[0, i] = s
+            world.notify_state_change()
 
     return world

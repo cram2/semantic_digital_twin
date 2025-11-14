@@ -16,6 +16,10 @@ from semantic_digital_twin.adapters.procthor.procthor_parser import (
     ProcthorWall,
     ProcthorObject,
 )
+from semantic_digital_twin.adapters.procthor.procthor_semantic_annotations import (
+    ProcthorResolver,
+    Bread,
+)
 from semantic_digital_twin.spatial_types.spatial_types import TransformationMatrix
 from semantic_digital_twin.utils import get_semantic_digital_twin_directory_root
 from semantic_digital_twin.world_description.geometry import Scale
@@ -105,7 +109,9 @@ class ProcTHORTestCase(unittest.TestCase):
         world = procthor_room.get_world()
         self.assertEqual(world.root.name.name, "Kitchen_4")
 
-        region = world.get_kinematic_structure_entity_by_name("Kitchen_4_region")
+        region = world.get_kinematic_structure_entity_by_name(
+            "Kitchen_4_surface_region"
+        )
         self.assertIsInstance(region, Region)
         region_area_mesh = region.area[0]
         self.assertAlmostEqual(region_area_mesh.mesh.area, 18.06)
@@ -292,7 +298,7 @@ class ProcTHORTestCase(unittest.TestCase):
         ...
 
     def test_parse_full_world(self):
-        world = ProcTHORParser(
+        world = ProcTHORParser.from_file(
             os.path.join(
                 get_semantic_digital_twin_directory_root(os.getcwd()),
                 "resources",
@@ -302,6 +308,16 @@ class ProcTHORTestCase(unittest.TestCase):
         ).parse()
 
         assert world is not None
+
+    def test_procthor_views(self):
+        """
+        Simple test case to check that the ProcthorResolver works correctly with the additional_names attribute.
+        """
+        resolver = ProcthorResolver()
+        resolver.classes = [Bread]
+
+        resolved_string = resolver.resolve("whitebread_a_slice_8_mesh")
+        self.assertEqual(Bread, resolved_string)
 
 
 if __name__ == "__main__":

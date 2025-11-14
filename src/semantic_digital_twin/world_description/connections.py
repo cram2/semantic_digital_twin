@@ -464,6 +464,7 @@ class Connection6DoF(Connection):
                 child_frame=self.child,
             )
         )
+        world.state[self.qw_name].position = 1.0
 
     @classmethod
     def create_with_dofs(
@@ -513,7 +514,6 @@ class Connection6DoF(Connection):
             world.add_degree_of_freedom(qz)
             qw = DegreeOfFreedom(name=PrefixedName("qw", stringified_name))
             world.add_degree_of_freedom(qw)
-            world.state[qw.name].position = 1.0
 
         return cls(
             parent=parent,

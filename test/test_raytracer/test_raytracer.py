@@ -103,3 +103,48 @@ def test_ray_test_batch(world_setup_simple):
     # Test return
     assert bodies[0] == body1
     assert bodies[1] == body2
+
+
+def test_min_distance(world_setup_simple):
+    world, body1, body2, body3, body4 = world_setup_simple
+    world.get_connection(world.root, body1).origin = np.array(
+        [[1, 0, 0, 0.5], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    )
+    world.get_connection(world.root, body2).origin = np.array(
+        [[1, 0, 0, -1], [0, 1, 0, 0], [0, 0, 1, 10], [0, 0, 0, 1]]
+    )
+
+    rt = RayTracer(world)
+    rt.update_scene()
+
+    rays = np.array([[0, 0, 0.1], [-1, 0, 0.1]])
+    targets = np.array([[1, 0, 0.1], [1, 0, 0.1]])
+
+    hits, indices, bodies = rt.ray_test(rays, targets, min_dist=1)
+
+    assert len(hits) == 1
+    assert bodies[0] == body1
+
+
+def test_max_distance(world_setup_simple):
+    world, body1, body2, body3, body4 = world_setup_simple
+    world.get_connection(world.root, body1).origin = np.array(
+        [[1, 0, 0, 1.5], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    )
+    world.get_connection(world.root, body2).origin = np.array(
+        [[1, 0, 0, -1], [0, 1, 0, 0], [0, 0, 1, 10], [0, 0, 0, 1]]
+    )
+
+    rt = RayTracer(world)
+    rt.update_scene()
+
+    rays = np.array([[0, 0, 0.1], [-1, 0, 0.1]])
+    targets = np.array([[2, 0, 0.1], [2, 0, 0.1]])
+
+    hits, indices, bodies = rt.ray_test(rays, targets)
+
+    assert len(hits) == 2
+
+    hits, indices, bodies = rt.ray_test(rays, targets, max_dist=1)
+
+    assert len(hits) == 0

@@ -23,6 +23,7 @@ from ..spatial_types import Vector3
 from ..spatial_types.spatial_types import TransformationMatrix
 from ..world import World
 from ..world_description.connections import FixedConnection
+from ..world_description.geometry import TriangleMesh
 from ..world_description.world_entity import Body, Region, KinematicStructureEntity
 
 if TYPE_CHECKING:
@@ -81,6 +82,7 @@ def get_visible_bodies(camera: Camera) -> List[KinematicStructureEntity]:
     seg = rt.create_segmentation_mask(
         TransformationMatrix(cam_pose, reference_frame=camera._world.root),
         resolution=256,
+        min_dist=0.2,
     )
     indices = np.unique(seg)
     indices = indices[indices > -1]
@@ -248,25 +250,35 @@ def is_body_in_region(body: Body, region: Region) -> float:
 @dataclass
 class SpatialRelation(Symbol, ABC):
     """
-    Check if the body is spatially related to the other body if you are looking from the point of semantic annotation.
-    The comparison is done using the centers of mass computed from the bodies' collision geometry.
+    Check if the KSE is spatially related to the other KSE if you are looking from the point of semantic annotation.
+    The comparison is done using the centers of mass computed from the KSE's collision geometry.
     """
 
-    body: Body
+    body: KinematicStructureEntity
     """
-    The body for which the check should be done.
+    The KSE for which the check should be done.
     """
 
-    other: Body
+    other: KinematicStructureEntity
     """
-    The other body.
+    The other KSE.
      """
+
+
+@dataclass
+class ViewDependentSpatialRelation(SpatialRelation, ABC):
 
     point_of_semantic_annotation: TransformationMatrix
     """
     The reference spot from where to look at the bodies.
     """
+
     eps: float = 1e-12
+    """
+    A small value to avoid division by zero.
+    """
+
+    spatial_relation_result: bool = False
 
     def _signed_distance_along_direction(self, index: int) -> float:
         """
@@ -290,73 +302,129 @@ class SpatialRelation(Symbol, ABC):
             reference_frame=self.point_of_semantic_annotation.reference_frame,
         )
 
-        s_body = front_norm.dot(
-            self.body.collision.center_of_mass_in_world().to_vector3()
-        )
-        s_other = front_norm.dot(
-            self.other.collision.center_of_mass_in_world().to_vector3()
-        )
+        s_body = front_norm.dot(self.body.center_of_mass.to_vector3())
+        s_other = front_norm.dot(self.other.center_of_mass.to_vector3())
         return (s_body - s_other).compile()()
 
 
 @dataclass
-class LeftOf(SpatialRelation):
+class LeftOf(ViewDependentSpatialRelation):
     """
     The "left" direction is taken as the -Y axis of the given point of semantic_annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(1) > 0.0
+        self.spatial_relation_result = self._signed_distance_along_direction(1) > 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
-class RightOf(SpatialRelation):
+class RightOf(ViewDependentSpatialRelation):
     """
     The "right" direction is taken as the +Y axis of the given point of semantic_annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(1) < 0.0
+        self.spatial_relation_result = self._signed_distance_along_direction(1) < 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
-class Above(SpatialRelation):
+class Above(ViewDependentSpatialRelation):
     """
     The "above" direction is taken as the +Z axis of the given point of semantic_annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(2) > 0.0
+        self.spatial_relation_result = self._signed_distance_along_direction(2) > 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
-class Below(SpatialRelation):
+class Below(ViewDependentSpatialRelation):
     """
     The "below" direction is taken as the -Z axis of the given point of semantic_annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(2) < 0.0
+        self.spatial_relation_result = self._signed_distance_along_direction(2) < 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
-class Behind(SpatialRelation):
+class Behind(ViewDependentSpatialRelation):
     """
     The "behind" direction is defined as the -X axis of the given point of semantic annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(0) < 0.0
+        self.spatial_relation_result = self._signed_distance_along_direction(0) < 0.0
+        return self.spatial_relation_result
 
 
 @dataclass
-class InFrontOf(SpatialRelation):
+class InFrontOf(ViewDependentSpatialRelation):
     """
     The "in front of" direction is defined as the +X axis of the given point of semantic annotation.
     """
 
     def __call__(self) -> bool:
-        return self._signed_distance_along_direction(0) > 0.0
+        self.result = self._signed_distance_along_direction(0) > 0.0
+        return self.result
+
+
+@dataclass
+class InsideOf(SpatialRelation):
+    """
+    The "inside of" relation is defined as the fraction of the volume of self.body
+    that lies within the bounding box of self.other.
+
+    Readily, `InsideOf(a,b) = 1.` means that `a` is completely inside `b`.
+    """
+
+    containment_ratio: float = 0.0
+
+    def __call__(self) -> float:
+        self.containment_ratio = self.compute_containment_ratio()
+        return self.containment_ratio
+
+    def compute_containment_ratio(self) -> float:
+        """
+        Compute the containment ratio of self.body inside self.other.
+        """
+        if self.other.combined_mesh is None:
+            return 0.0
+
+        # Get meshes in their local (body) frames
+        mesh_a_local = self.body.combined_mesh
+        mesh_b_local = self.other.combined_mesh
+
+        # Check if either mesh is empty
+        if (
+            mesh_a_local is None
+            or mesh_a_local.is_empty
+            or mesh_b_local is None
+            or mesh_b_local.is_empty
+        ):
+            return 0.0
+
+        # Transform meshes from body frame to world frame
+        mesh_a = mesh_a_local.copy()
+        mesh_a.apply_transform(self.body.global_pose.to_np())
+
+        mesh_b = mesh_b_local.copy()
+        mesh_b.apply_transform(self.other.global_pose.to_np())
+
+        # Use bounding box of mesh_b to check if mesh_a is inside mesh_b
+        mesh_b_bbox = mesh_b.bounding_box
+
+        if not mesh_b_bbox.is_watertight:
+            return 0.0
+
+        inside = mesh_b_bbox.contains(mesh_a.vertices)
+        if len(inside) == 0:
+            return 0.0
+        return sum(inside) / len(inside)
 
 
 @dataclass

@@ -108,7 +108,11 @@ class RayTracer:
                 self.scene.graph[body.name.name + f"_collision_{i}"] = transform
 
     def create_segmentation_mask(
-        self, camera_pose: GenericSpatialType, resolution: int = 512
+        self,
+        camera_pose: GenericSpatialType,
+        resolution: int = 512,
+        min_dist: float = 0,
+        max_dist: float = np.inf,
     ) -> np.ndarray:
         """
         Creates a segmentation mask for the ray tracer scene from the camera position to the target position. Each pixel
@@ -116,19 +120,29 @@ class RayTracer:
 
         :param camera_pose: The position of the camera.
         :param resolution: The resolution of the segmentation mask.
+        :param min_dist: The minimum distance of a body to be considered a hit.
+        :param max_dist: The maximum distance of a body to be considered a hit.
         :return: A segmentation mask as a numpy array.
         """
         self.update_scene()
         ray_origins, ray_directions, pixels = self.create_camera_rays(
             camera_pose, resolution=resolution
         )
-        points, index_ray, index_tri = self.scene.to_mesh().ray.intersects_location(
-            ray_origins, ray_directions, multiple_hits=False
-        )
-        bodies = self.scene.triangles_node[index_tri]
 
-        # map the name of the scene objects to the index
-        bodies = [self.scene_to_index[body] for body in bodies]
+        target_points = ray_origins + ray_directions * 10
+
+        points, index_ray, bodies = self.ray_test(
+            ray_origins,
+            target_points,
+            multiple_hits=True,
+            min_dist=min_dist,
+            max_dist=max_dist,
+        )
+        unique_index = np.unique(index_ray, return_index=True)[1]
+
+        index_ray = index_ray[unique_index]
+
+        bodies = np.array([body.index for body in bodies])[unique_index]
 
         pixel_ray = pixels[index_ray]
 
@@ -142,7 +156,11 @@ class RayTracer:
         return a
 
     def create_depth_map(
-        self, camera_pose: GenericSpatialType, resolution: int = 512
+        self,
+        camera_pose: GenericSpatialType,
+        resolution: int = 512,
+        min_dist: float = 0,
+        max_dist: float = np.inf,
     ) -> np.ndarray:
         """
         Creates a depth map for the ray tracer scene from the camera position to the target position. Each pixel in the
@@ -151,16 +169,29 @@ class RayTracer:
 
         :param camera_pose: The position of the camera.
         :param resolution: The resolution of the depth map.
+        :param min_dist: The minimum distance of a body to be considered a hit.
+        :param max_dist: The maximum distance of a body to be considered a hit.
         :return: A depth map as a numpy array.
         """
         self.update_scene()
         ray_origins, ray_directions, pixels = self.create_camera_rays(
             camera_pose, resolution=resolution
         )
-        # Code from the example in trimesh repo: examples/raytrace.py
-        points, index_ray, index_tri = self.scene.to_mesh().ray.intersects_location(
-            ray_origins, ray_directions, multiple_hits=False
+
+        target_points = ray_origins + ray_directions * 10
+
+        points, index_ray, bodies = self.ray_test(
+            ray_origins,
+            target_points,
+            multiple_hits=True,
+            min_dist=min_dist,
+            max_dist=max_dist,
         )
+        unique_index = np.unique(index_ray, return_index=True)[1]
+        index_ray = index_ray[unique_index]
+        points = points[unique_index]
+        ray_origins = ray_origins[unique_index]
+
         depth = trimesh.util.diagonal_dot(
             points - ray_origins[0], ray_directions[index_ray]
         )
@@ -205,13 +236,21 @@ class RayTracer:
         return self.scene.camera_rays()
 
     def ray_test(
-        self, origin_points: np.ndarray, target_points: np.ndarray, multiple_hits=False
+        self,
+        origin_points: np.ndarray,
+        target_points: np.ndarray,
+        multiple_hits=False,
+        min_dist: float = 0,
+        max_dist: float = np.inf,
     ) -> Tuple[np.ndarray, np.ndarray, List[Body]]:
         """
         Performs a ray test from the origin point to the target point in the ray tracer scene.
 
         :param origin_points: The starting point of the ray.
         :param target_points: The end point of the ray.
+        :param multiple_hits: Whether to return multiple hits or not.
+        :param min_dist: The minimum distance of a body to be considered a hit.
+        :param max_dist: The maximum distance of a body to be considered a hit.
         :return: A tuple containing the points where the ray intersects and the indices of rays that hit the scene as well as the bodies that were.
         """
         origin_points = np.array(origin_points)
@@ -226,6 +265,13 @@ class RayTracer:
         points, index_ray, index_tri = self.scene.to_mesh().ray.intersects_location(
             origin_points, ray_directions, multiple_hits=multiple_hits
         )
+        dist = np.linalg.norm(points - origin_points[index_ray], axis=1)
+
+        valid_indices = np.where((dist >= min_dist) & (dist <= max_dist))[0]
+        points = points[valid_indices]
+        index_ray = index_ray[valid_indices]
+        index_tri = index_tri[valid_indices]
+
         bodies = self.scene.triangles_node[index_tri]
 
         # map the name of the scene objects to the index

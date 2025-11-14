@@ -3,12 +3,14 @@ import logging
 import math
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Dict, Tuple, Union, Set, Optional, List
+from typing import Dict, Tuple, Union, Set, Optional, List, Any, Self
+from pathlib import Path
 
 import numpy as np
-from krrood.entity_query_language.entity import the, entity, let
+from krrood.entity_query_language.entity import the, entity, let, symbolic_mode
 from krrood.ormatic.eql_interface import eql_to_sql
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy import select
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.orm import Session
 
 from ...datastructures.prefixed_name import PrefixedName
@@ -554,15 +556,25 @@ class ProcTHORParser:
     Parses a Procthor JSON file into a semantic digital twin World.
     """
 
-    file_path: str
+    name: str
     """
-    File path to the Procthor JSON file.
+    The name of the world that is extracted from the house."""
+
+    house: Dict[str, Any]
+    """
+    The house as JSON.
     """
 
     session: Optional[Session] = field(default=None)
     """
     SQLAlchemy session to interact with the database to import objects.
     """
+
+    @classmethod
+    def from_file(cls, file_path: str, session: Optional[Session] = None) -> Self:
+        return cls(
+            name=Path(file_path).stem, house=json.load(open(file_path)), session=session
+        )
 
     def parse(self) -> World:
         """
@@ -571,10 +583,8 @@ class ProcTHORParser:
         Walls and doors are constructed from the supplied polygons
         Objects are imported from the database
         """
-        with open(self.file_path) as f:
-            house = json.load(f)
-        house_name = self.file_path.split("/")[-1].split(".")[0]
 
+        house_name = self.name
         world = World(name=house_name)
         with world.modify_world():
             world_root = Body(name=PrefixedName(house_name))
@@ -582,14 +592,14 @@ class ProcTHORParser:
                 world_root, assign_unique_name_to_duplicates=True
             )
 
-            self.import_rooms(world, house["rooms"])
+            self.import_rooms(world, self.house["rooms"])
 
             if self.session is not None:
-                self.import_objects(world, house["objects"])
+                self.import_objects(world, self.house["objects"])
             else:
                 logging.warning("No database session provided, skipping object import.")
 
-            self.import_walls_and_doors(world, house["walls"], house["doors"])
+            self.import_walls_and_doors(world, self.house["walls"], self.house["doors"])
 
             return world
 
@@ -620,11 +630,13 @@ class ProcTHORParser:
         :param world: The World instance to which the objects will be added.
         :param objects: List of object dictionaries from the Procthor JSON file.
         """
-        for obj in objects:
+        for index, obj in enumerate(objects):
             procthor_object = ProcthorObject(object_dict=obj, session=self.session)
             obj_world = procthor_object.get_world()
             if obj_world is None:
                 continue
+            # for kse in obj_world.kinematic_structure_entities:
+            #     kse.name.name += f"_{id(obj)}"
             obj_connection = FixedConnection(
                 parent=world.root,
                 child=obj_world.root,
@@ -752,27 +764,21 @@ def get_world_by_asset_id(session: Session, asset_id: str) -> Optional[World]:
     Queries the database for a WorldMapping with the given asset_id provided by the procthor file.
     """
     asset_id = asset_id.lower()
-    expr = the(
-        entity(
-            world := let(type_=WorldMapping),
-            world.name == asset_id,
-        )
-    )
     other_possible_name = "_".join(asset_id.split("_")[:-1])
-    expr2 = the(
-        entity(
-            world := let(type_=WorldMapping),
-            world.name == other_possible_name,
+    with symbolic_mode():
+
+        expr = select(WorldMappingDAO).where(WorldMappingDAO.name == asset_id)
+        expr2 = select(WorldMappingDAO).where(
+            WorldMappingDAO.name == other_possible_name
         )
-    )
-    logging.info(f"Querying name: {asset_id}")
+        logging.info(f"Querying name: {asset_id}")
     try:
-        world_mapping = eql_to_sql(expr, session).evaluate()
-    except NoResultFound:
+        world_mapping = session.scalars(expr).one()
+    except (NoResultFound, MultipleResultsFound):
         try:
             logging.info(f"Querying name: {other_possible_name}")
-            world_mapping = eql_to_sql(expr2, session).evaluate()
-        except NoResultFound:
+            world_mapping = session.scalars(expr2).one()
+        except (NoResultFound, MultipleResultsFound):
             world_mapping = None
             logging.warning(
                 f"Could not find world with name {asset_id} or {other_possible_name}; Skipping."
