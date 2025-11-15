@@ -1,6 +1,7 @@
 import os
 import time
 import unittest
+import numpy as np
 from typing import Optional
 
 import sqlalchemy
@@ -371,6 +372,35 @@ def test_semantic_annotation_modifications(rclpy_node):
     assert [sa.name for sa in w1.semantic_annotations] == [
         sa.name for sa in w2.semantic_annotations
     ]
+
+
+def test_synchronize_6dof(rclpy_node):
+    w1 = World(name="w1")
+    w2 = World(name="w2")
+
+    synchronizer_1 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w1,
+    )
+    synchronizer_2 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w2,
+    )
+
+    b1 = Body(name=PrefixedName("b1"))
+    b2 = Body(name=PrefixedName("b2"))
+
+    with w1.modify_world():
+        w1.add_body(b1)
+        w1.add_body(b2)
+        c1 = Connection6DoF.create_with_dofs(parent=b1, child=b2, world=w1)
+        w1.add_connection(c1)
+
+    time.sleep(0.2)
+    c2 = w2.get_connection_by_name(c1.name)
+    assert isinstance(c2, Connection6DoF)
+    assert w1.state[c1.qw_name].position == w2.state[c2.qw_name].position
+    np.testing.assert_array_almost_equal(w1.state.data, w2.state.data)
 
 
 if __name__ == "__main__":
