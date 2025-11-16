@@ -505,6 +505,9 @@ class ProcthorObject:
             return body_world
 
     def _merge_child_into_world(self, body_world: World, child: dict) -> None:
+        """
+        Merges a child object into the given body world.
+        """
         child_object = ProcthorObject(child, self.session)
         world_T_child = child_object.world_T_obj
         child_world = child_object.get_world()
