@@ -26,6 +26,9 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     """
 
     _unique_by_uuid: bool = field(init=False, default=False)
+    """
+    Whether the name has been appended with a random UUIDv4. Used to make sure ensure_uniqueness() is executed only once.
+    """
 
     def __hash__(self):
         return hash((self.prefix, self.name))
@@ -57,7 +60,7 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     def __ge__(self, other):
         return str(self) >= str(other)
 
-    def ensure_unique(self):
+    def ensure_uniqueness(self):
         """Appends a random UUIDv4 (~2¹²² possibilities) to the name."""
         if not self._unique_by_uuid:
             self.name = f"{self.name}_{uuid.uuid4()}"
