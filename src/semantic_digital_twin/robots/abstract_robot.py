@@ -52,7 +52,7 @@ class SemanticRobotAnnotation(RootedSemanticAnnotation, ABC):
 
     def __post_init__(self):
         if self._world is not None:
-            self._world.add_semantic_annotation(self, skip_duplicates=True)
+            self._world.add_semantic_annotation(self)
 
     @abstractmethod
     def assign_to_robot(self, robot: AbstractRobot):

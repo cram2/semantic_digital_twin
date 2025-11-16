@@ -89,9 +89,9 @@ def test_chain_of_connections(world_setup):
     result = world.compute_chain_of_connections(root=world.root, tip=l2)
     result = [x.name for x in result]
     assert result == [
-        PrefixedName(name="root_T_bf", prefix=None),
-        PrefixedName(name="bf_T_l1", prefix=None),
-        PrefixedName(name="l1_T_l2", prefix=None),
+        PrefixedName(name="root_C_bf", prefix=None),
+        PrefixedName(name="bf_C_l1", prefix=None),
+        PrefixedName(name="l1_C_l2", prefix=None),
     ]
 
 
@@ -141,12 +141,12 @@ def test_split_chain_of_connections(world_setup):
     result = tuple([x.name for x in y] for y in result)
     assert result == (
         [
-            PrefixedName(name="r1_T_r2", prefix=None),
-            PrefixedName(name="bf_T_r1", prefix=None),
+            PrefixedName(name="r1_C_r2", prefix=None),
+            PrefixedName(name="bf_C_r1", prefix=None),
         ],
         [
-            PrefixedName(name="bf_T_l1", prefix=None),
-            PrefixedName(name="l1_T_l2", prefix=None),
+            PrefixedName(name="bf_C_l1", prefix=None),
+            PrefixedName(name="l1_C_l2", prefix=None),
         ],
     )
 
@@ -155,14 +155,14 @@ def test_split_chain_of_connections_adjacent1(world_setup):
     world, _, _, _, r1, r2 = world_setup
     result = world.compute_split_chain_of_connections(root=r2, tip=r1)
     result = tuple([x.name for x in y] for y in result)
-    assert result == ([PrefixedName(name="r1_T_r2", prefix=None)], [])
+    assert result == ([PrefixedName(name="r1_C_r2", prefix=None)], [])
 
 
 def test_split_chain_of_connections_adjacent2(world_setup):
     world, _, _, _, r1, r2 = world_setup
     result = world.compute_split_chain_of_connections(root=r1, tip=r2)
     result = tuple([x.name for x in y] for y in result)
-    assert result == ([], [PrefixedName(name="r1_T_r2", prefix=None)])
+    assert result == ([], [PrefixedName(name="r1_C_r2", prefix=None)])
 
 
 def test_split_chain_of_connections_identical(world_setup):
@@ -372,7 +372,7 @@ def test_add_semantic_annotation(world_setup):
     with world.modify_world():
         world.add_semantic_annotation(v)
     with pytest.raises(AddingAnExistingSemanticAnnotationError):
-        world.add_semantic_annotation(v, skip_duplicates=False)
+        world.add_semantic_annotation(v)
     assert world.get_semantic_annotation_by_name(v.name) == v
 
 

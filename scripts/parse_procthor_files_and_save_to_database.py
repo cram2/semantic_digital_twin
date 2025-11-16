@@ -116,14 +116,14 @@ def parse_procthor_files_and_save_to_database(
     TODO: Ensure all relevant files, even those not inside a grp, are parsed.
     """
     semantic_digital_twin_database_uri = os.environ.get(
-        "semantic_digital_twin_DATABASE_URI"
+        "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
     )
     assert (
         semantic_digital_twin_database_uri is not None
-    ), "Please set the semantic_digital_twin_DATABASE_URI environment variable."
+    ), "Please set the SEMANTIC_DIGITAL_TWIN_DATABASE_URI environment variable."
 
     procthor_root = os.path.join(os.path.expanduser("~"), "ai2thor")
-    # procthor_root = os.path.join(os.path.expanduser("~"), "work", "ai2thor")
+    procthor_root = os.path.join(os.path.expanduser("~"), "work", "ai2thor")
 
     files = []
     for root, dirs, filenames in os.walk(procthor_root):

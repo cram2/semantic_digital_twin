@@ -491,26 +491,39 @@ class ProcthorObject:
                 f"Could not find asset {asset_id} in the database. Skipping object and its children."
             )
             return None
+        body_world.root.name.ensure_uniqueness()
+        children = self.object_dict.get("children", {})
+
+        if not children:
+            for kse in body_world.kinematic_structure_entities:
+                kse.name.ensure_uniqueness()
+            return body_world
 
         with body_world.modify_world():
-
-            for child in self.object_dict.get("children", {}):
-                child_object = ProcthorObject(child, self.session)
-                world_T_child = child_object.world_T_obj
-                child_world = child_object.get_world()
-                if child_world is None:
-                    continue
-                obj_T_child = self.world_T_obj.inverse() @ world_T_child
-                child_connection = FixedConnection(
-                    parent=body_world.root,
-                    child=child_world.root,
-                    parent_T_connection_expression=obj_T_child,
-                )
-                body_world.merge_world(
-                    child_world, child_connection, assign_unique_name_to_duplicates=True
-                )
+            for child in children:
+                self._merge_child_into_world(body_world, child)
 
             return body_world
+
+    def _merge_child_into_world(self, body_world: World, child: dict) -> None:
+        """
+        Merges a child object into the given body world.
+        """
+        child_object = ProcthorObject(child, self.session)
+        world_T_child = child_object.world_T_obj
+        child_world = child_object.get_world()
+        if child_world is None:
+            return
+        obj_T_child = self.world_T_obj.inverse() @ world_T_child
+        child_world.root.name.ensure_uniqueness()
+        child_connection = FixedConnection(
+            parent=body_world.root,
+            child=child_world.root,
+            parent_T_connection_expression=obj_T_child,
+        )
+        body_world.merge_world(
+            child_world, child_connection
+        )
 
 
 def unity_to_semantic_digital_twin_transform(
@@ -579,7 +592,7 @@ class ProcTHORParser:
         with world.modify_world():
             world_root = Body(name=PrefixedName(house_name))
             world.add_kinematic_structure_entity(
-                world_root, assign_unique_name_to_duplicates=True
+                world_root
             )
 
             self.import_rooms(world, house["rooms"])
@@ -610,7 +623,7 @@ class ProcTHORParser:
                 parent_T_connection_expression=procthor_room.world_T_room,
             )
             world.merge_world(
-                room_world, room_connection, assign_unique_name_to_duplicates=True
+                room_world, room_connection
             )
 
     def import_objects(self, world: World, objects: List[Dict]):
@@ -631,7 +644,7 @@ class ProcTHORParser:
                 parent_T_connection_expression=procthor_object.world_T_obj,
             )
             world.merge_world(
-                obj_world, obj_connection, assign_unique_name_to_duplicates=True
+                obj_world, obj_connection
             )
 
     def import_walls_and_doors(
@@ -654,7 +667,7 @@ class ProcTHORParser:
                 parent_T_connection_expression=procthor_wall.world_T_wall,
             )
             world.merge_world(
-                wall_world, wall_connection, assign_unique_name_to_duplicates=True
+                wall_world, wall_connection
             )
 
     @staticmethod
@@ -754,14 +767,14 @@ def get_world_by_asset_id(session: Session, asset_id: str) -> Optional[World]:
     asset_id = asset_id.lower()
     expr = the(
         entity(
-            world := let(type_=WorldMapping),
+            world := let(type_=WorldMapping, domain=None),
             world.name == asset_id,
         )
     )
     other_possible_name = "_".join(asset_id.split("_")[:-1])
     expr2 = the(
         entity(
-            world := let(type_=WorldMapping),
+            world := let(type_=WorldMapping, domain=None),
             world.name == other_possible_name,
         )
     )

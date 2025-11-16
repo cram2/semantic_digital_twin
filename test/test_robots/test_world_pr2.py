@@ -234,7 +234,7 @@ def test_compute_ik_unreachable(pr2_world):
 
 def test_apply_control_commands_omni_drive_pr2(pr2_world):
     omni_drive: OmniDrive = pr2_world.get_connection_by_name(
-        PrefixedName("odom_combined_T_base_footprint")
+        PrefixedName("odom_combined_C_base_footprint")
     )
     cmd = np.zeros((len(pr2_world.degrees_of_freedom)), dtype=float)
     cmd[pr2_world.state._index[omni_drive.x_velocity.name]] = 100
@@ -272,7 +272,7 @@ def test_search_for_connections_of_type(pr2_world: World):
     connections = pr2_world.get_connections_by_type(OmniDrive)
     assert len(connections) == 1
     assert connections[0].name == PrefixedName(
-        name="odom_combined_T_base_footprint", prefix="pr2"
+        name="odom_combined_C_base_footprint", prefix="pr2"
     )
     assert connections[0].parent == pr2_world.root
     assert connections[0].child == pr2_world.get_kinematic_structure_entity_by_name(

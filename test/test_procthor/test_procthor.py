@@ -245,12 +245,11 @@ class ProcTHORTestCase(unittest.TestCase):
             atol=1e-6,
         )
 
-    @unittest.skip("Requires Database, TBD")
     def test_world_T_obj(self):
         objects = self.house_json["objects"][0]
 
         semantic_digital_twin_database_uri = os.environ.get(
-            "semantic_digital_twin_DATABASE_URI"
+            "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
         )
 
         # Create database engine and session
@@ -274,12 +273,11 @@ class ProcTHORTestCase(unittest.TestCase):
             decimal=6,
         )
 
-    @unittest.skip("Requires Database, TBD")
     def test_object_get_world(self):
         objects = self.house_json["objects"][0]
 
         semantic_digital_twin_database_uri = os.environ.get(
-            "semantic_digital_twin_DATABASE_URI"
+            "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
         )
 
         # Create database engine and session
@@ -292,13 +290,23 @@ class ProcTHORTestCase(unittest.TestCase):
         ...
 
     def test_parse_full_world(self):
+        semantic_digital_twin_database_uri = os.environ.get(
+            "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
+        )
+
+        # Create database engine and session
+        engine = create_engine(f"mysql+pymysql://{semantic_digital_twin_database_uri}")
+        session = Session(engine)
+
+
         world = ProcTHORParser(
             os.path.join(
                 get_semantic_digital_twin_directory_root(os.getcwd()),
                 "resources",
                 "procthor_json",
-                "house_987654321.json",
-            )
+                "house_1.json",
+            ),
+            session=session
         ).parse()
 
         assert world is not None

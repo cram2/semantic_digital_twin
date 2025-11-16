@@ -818,7 +818,7 @@ class Connection(WorldEntity, SubclassJSONSerializer):
         cls, parent: KinematicStructureEntity, child: KinematicStructureEntity
     ) -> PrefixedName:
         return PrefixedName(
-            f"{parent.name.name}_T_{child.name.name}", prefix=child.name.prefix
+            f"{parent.name.name}_C_{child.name.name}", prefix=child.name.prefix
         )
 
     def __hash__(self):
