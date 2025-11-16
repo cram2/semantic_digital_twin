@@ -491,6 +491,7 @@ class ProcthorObject:
                 f"Could not find asset {asset_id} in the database. Skipping object and its children."
             )
             return None
+        body_world.root.name.ensure_uniqueness()
         children = self.object_dict.get("children", {})
 
         if not children:
@@ -637,7 +638,6 @@ class ProcTHORParser:
             obj_world = procthor_object.get_world()
             if obj_world is None:
                 continue
-            obj_world.root.name.ensure_uniqueness()
             obj_connection = FixedConnection(
                 parent=world.root,
                 child=obj_world.root,
