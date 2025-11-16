@@ -133,7 +133,7 @@ def test_handle_semantic_annotation_eql(apartment_world):
         type_=Body,
         domain=apartment_world.bodies
     )
-    query = an(entity(inference(Handle), in_("handle", body.name.name.lower())))
+    query = an(entity(inference(Handle)(body=body), in_("handle", body.name.name.lower())))
 
     handles = list(query.evaluate())
     assert len(handles) > 0

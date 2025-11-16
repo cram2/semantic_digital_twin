@@ -1,4 +1,4 @@
-import uuid
+from uuid import UUID, uuid4
 from dataclasses import dataclass, field
 
 from krrood.entity_query_language.predicate import Symbol
@@ -13,6 +13,7 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     A class that represents an entity with a name and an optional prefix.
     We have the assumption every PrefixedName can only exist once in a given world.
     PrefixedName.name may be duplicate, but PrefixedName.prefix is always unique.
+    An optional UUID can be added to ensure uniqueness.
     """
 
     name: str
@@ -25,9 +26,9 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     Unique identifier of the entity.
     """
 
-    _unique_by_uuid: bool = field(init=False, default=False)
+    _uuid: Optional[UUID] = field(init=False, default=None)
     """
-    Whether the name has been appended with a random UUIDv4. Used to make sure ensure_uniqueness() is executed only once.
+    An optional UUID to ensure uniqueness.
     """
 
     def __hash__(self):
@@ -39,14 +40,20 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
+
+        if self._uuid:
+            return self._uuid == other._uuid
+
         return self.prefix == other.prefix and self.name == other.name
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "name": self.name, "prefix": self.prefix}
+        return {**super().to_json(), "name": self.name, "prefix": self.prefix, "_uuid": self._uuid}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(name=data["name"], prefix=data["prefix"])
+        name = cls(name=data["name"], prefix=data["prefix"])
+        name._uuid = data.get("_uuid", None)
+        return name
 
     def __lt__(self, other):
         return str(self) < str(other)
@@ -62,6 +69,5 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
 
     def ensure_uniqueness(self):
         """Appends a random UUIDv4 (~2¹²² possibilities) to the name."""
-        if not self._unique_by_uuid:
-            self.name = f"{self.name}_{uuid.uuid4()}"
-            self._unique_by_uuid = True
+        if not self._uuid:
+            self._uuid = uuid4()

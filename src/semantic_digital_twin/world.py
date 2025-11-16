@@ -1045,9 +1045,11 @@ class World:
         """
         original_name = name
         prefix = None
+        uuid = None
 
         match name:
             case PrefixedName():
+                uuid = name._uuid
                 prefix = name.prefix
                 name = name.name
             case str():
@@ -1056,8 +1058,9 @@ class World:
         matches = [
             world_entity
             for world_entity in world_entity_iterable
-            if world_entity.name.name == name
-            and (prefix is None or world_entity.name.prefix == prefix)
+            if (uuid is not None and world_entity.name._uuid == uuid)
+               or (uuid is None and world_entity.name.name == name
+               and (prefix is None or world_entity.name.prefix == prefix))
         ]
         match matches:
             case []:
@@ -1099,9 +1102,6 @@ class World:
         with self.modify_world(), other.modify_world():
             self_root = self.root
             other_root = other.root
-            if "countertop_c_8x4" in str(other.root.name):
-                print(other.root.name)
-                ...
 
             self._merge_dofs_with_state_of_world(other)
             self._merge_connections_of_world(other)
@@ -1132,6 +1132,7 @@ class World:
             try:
                 self.add_connection(connection)
             except TypeError as e:
+                self.get_kinematic_structure_entity_by_name(connection.child.name)
                 self.add_connection(connection)
         other.remove_kinematic_structure_entity(other_root)
         self._add_kinematic_structure_entity_if_not_in_world(other_root)
