@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from krrood.entity_query_language.predicate import Symbol
 from typing_extensions import Optional, Dict, Any, Self
@@ -24,6 +24,8 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
     """
     Unique identifier of the entity.
     """
+
+    _unique_by_uuid: bool = field(init=False, default=False)
 
     def __hash__(self):
         return hash((self.prefix, self.name))
@@ -57,4 +59,6 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
 
     def ensure_unique(self):
         """Appends a random UUIDv4 (~2¹²² possibilities) to the name."""
-        self.name = f"{self.name}_{uuid.uuid4()}"
+        if not self._unique_by_uuid:
+            self.name = f"{self.name}_{uuid.uuid4()}"
+            self._unique_by_uuid = True

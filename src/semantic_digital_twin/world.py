@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -14,8 +13,8 @@ import numpy as np
 import rustworkx as rx
 import rustworkx.visit
 import rustworkx.visualization
-from lxml import etree
 from krrood.adapters.json_serializer import SubclassJSONSerializer
+from lxml import etree
 from rustworkx import NoEdgeBetweenNodes
 from typing_extensions import (
     Dict,
@@ -685,9 +684,7 @@ class World:
         self,
         body: KinematicStructureEntity,
     ) -> Optional[int]:
-        return self.add_kinematic_structure_entity(
-            body
-        )
+        return self.add_kinematic_structure_entity(body)
 
     def add_kinematic_structure_entity(
         self,
@@ -774,9 +771,7 @@ class World:
         self.state.add_degree_of_freedom(dof)
         self.degrees_of_freedom.append(dof)
 
-    def add_semantic_annotation(
-        self, semantic_annotation: SemanticAnnotation
-    ) -> None:
+    def add_semantic_annotation(self, semantic_annotation: SemanticAnnotation) -> None:
         """
         Adds a semantic annotation to the current list of semantic annotations if it doesn't already exist. Ensures
         that the `semantic_annotation` is associated with the current instance and maintains the
@@ -1104,12 +1099,14 @@ class World:
         with self.modify_world(), other.modify_world():
             self_root = self.root
             other_root = other.root
+            if "countertop_c_8x4" in str(other.root.name):
+                print(other.root.name)
+                ...
+
             self._merge_dofs_with_state_of_world(other)
             self._merge_connections_of_world(other)
             self._remove_kinematic_structure_entities_of_world(other)
-            self._merge_semantic_annotations_of_world(
-                other
-            )
+            self._merge_semantic_annotations_of_world(other)
 
             if not root_connection and self_root:
                 root_connection = Connection6DoF.create_with_dofs(
@@ -1132,7 +1129,10 @@ class World:
         for connection in other.connections:
             other.remove_kinematic_structure_entity(connection.parent)
             other.remove_kinematic_structure_entity(connection.child)
-            self.add_connection(connection)
+            try:
+                self.add_connection(connection)
+            except TypeError as e:
+                self.add_connection(connection)
         other.remove_kinematic_structure_entity(other_root)
         self._add_kinematic_structure_entity_if_not_in_world(other_root)
 
@@ -1144,17 +1144,13 @@ class World:
         for kinematic_structure_entity in other_kse_with_world:
             other.remove_kinematic_structure_entity(kinematic_structure_entity)
 
-    def _merge_semantic_annotations_of_world(
-        self, other: World
-    ):
+    def _merge_semantic_annotations_of_world(self, other: World):
         other_semantic_annotations = [
             semantic_annotation for semantic_annotation in other.semantic_annotations
         ]
         for semantic_annotation in other_semantic_annotations:
             other.remove_semantic_annotation(semantic_annotation)
-            self.add_semantic_annotation(
-                semantic_annotation
-            )
+            self.add_semantic_annotation(semantic_annotation)
 
     # %% Subgraph Targeting
     def get_connections_of_branch(
@@ -1267,6 +1263,16 @@ class World:
         child_bodies = self.compute_descendent_child_kinematic_structure_entities(
             new_root
         )
+
+        root_connection = new_root.parent_connection
+
+        if not child_bodies:
+            with self.modify_world(), new_world.modify_world():
+                self.remove_connection(root_connection)
+                self.remove_kinematic_structure_entity(new_root)
+                new_world.add_kinematic_structure_entity(new_root)
+                return new_world
+
         child_body_parent_connections = [
             body.parent_connection for body in child_bodies
         ]

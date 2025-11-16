@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Dict
 
 from krrood.adapters.json_serializer import JSONSerializationError
 from typing_extensions import (
@@ -11,6 +12,7 @@ from typing_extensions import (
     Callable,
     Tuple,
     Union,
+    Any,
 )
 
 from .datastructures.prefixed_name import PrefixedName
@@ -36,6 +38,21 @@ class UsageError(LogicalError):
     An exception raised when an incorrect usage of the API is encountered.
     """
 
+@dataclass
+class UnknownWorldModification(Exception):
+    """
+    Raised when an unknown world modification is attempted.
+    """
+
+    call: Callable
+    kwargs: Dict[str, Any]
+
+    def __post_init__(self):
+        super().__init__(
+            " Make sure that world modifications are atomic and that every atomic modification is "
+            "represented by exactly one subclass of WorldModelModification."
+            "This module might be incomplete, you can help by expanding it."
+        )
 
 @dataclass
 class AddingAnExistingSemanticAnnotationError(UsageError):

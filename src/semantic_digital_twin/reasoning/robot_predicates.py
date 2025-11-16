@@ -5,7 +5,6 @@ from typing import Optional, List
 
 import trimesh.sample
 from krrood.entity_query_language.entity import (
-    symbolic_mode,
     let,
     an,
     entity,
@@ -40,17 +39,16 @@ def robot_in_collision(
     if ignore_collision_with is None:
         ignore_collision_with = []
 
-    with symbolic_mode():
-        body = let(type_=Body, domain=robot._world.bodies_with_enabled_collision)
-        possible_collisions_bodies = an(
-            entity(
-                body,
-                and_(
-                    not_(contains(robot.bodies, body)),
-                    not_(contains(ignore_collision_with, body)),
-                ),
+    body = let(type_=Body, domain=robot._world.bodies_with_enabled_collision)
+    possible_collisions_bodies = an(
+        entity(
+            body,
+            and_(
+                not_(contains(robot.bodies, body)),
+                not_(contains(ignore_collision_with, body)),
             ),
-        )
+        ),
+    )
     possible_collisions_bodies = possible_collisions_bodies.evaluate()
 
     tcd = TrimeshCollisionDetector(robot._world)
@@ -74,13 +72,12 @@ def robot_holds_body(robot: AbstractRobot, body: Body) -> bool:
     :param body: The body to check if it is picked
     :return: True if the robot is holding the object, False otherwise
     """
-    with symbolic_mode():
-        grippers = an(
-            entity(
-                g := let(ParallelGripper, robot._world.semantic_annotations),
-                g._robot == robot,
-            )
+    grippers = an(
+        entity(
+            g := let(ParallelGripper, robot._world.semantic_annotations),
+            g._robot == robot,
         )
+    )
 
     return any(
         [is_body_in_gripper(body, gripper) > 0.0 for gripper in grippers.evaluate()]
@@ -108,13 +105,12 @@ def blocking(
         for dof, state in result.items():
             root._world.state[dof.name].position = state
 
-    with symbolic_mode():
-        robot = the(
-            entity(
-                r := let(AbstractRobot, root._world.semantic_annotations),
-                tip in r.bodies,
-            )
+    robot = the(
+        entity(
+            r := let(AbstractRobot, root._world.semantic_annotations),
+            tip in r.bodies,
         )
+    )
     return robot_in_collision(robot.evaluate(), [])
 
 

@@ -493,22 +493,27 @@ class ProcthorObject:
             return None
 
         with body_world.modify_world():
-
-            for child in self.object_dict.get("children", {}):
-                child_object = ProcthorObject(child, self.session)
-                world_T_child = child_object.world_T_obj
-                child_world = child_object.get_world()
-                if child_world is None:
-                    continue
-                obj_T_child = self.world_T_obj.inverse() @ world_T_child
-                child_connection = FixedConnection(
-                    parent=body_world.root,
-                    child=child_world.root,
-                    parent_T_connection_expression=obj_T_child,
-                )
-                body_world.merge_world(
-                    child_world, child_connection
-                )
+            children = self.object_dict.get("children", {})
+            if children:
+                for child in children:
+                    child_object = ProcthorObject(child, self.session)
+                    world_T_child = child_object.world_T_obj
+                    child_world = child_object.get_world()
+                    if child_world is None:
+                        continue
+                    obj_T_child = self.world_T_obj.inverse() @ world_T_child
+                    child_world.root.name.ensure_unique()
+                    child_connection = FixedConnection(
+                        parent=body_world.root,
+                        child=child_world.root,
+                        parent_T_connection_expression=obj_T_child,
+                    )
+                    body_world.merge_world(
+                        child_world, child_connection
+                    )
+                else:
+                    for kse in body_world.kinematic_structure_entities:
+                        kse.name.ensure_unique()
 
             return body_world
 
@@ -625,6 +630,7 @@ class ProcTHORParser:
             obj_world = procthor_object.get_world()
             if obj_world is None:
                 continue
+            obj_world.root.name.ensure_unique()
             obj_connection = FixedConnection(
                 parent=world.root,
                 child=obj_world.root,
@@ -754,14 +760,14 @@ def get_world_by_asset_id(session: Session, asset_id: str) -> Optional[World]:
     asset_id = asset_id.lower()
     expr = the(
         entity(
-            world := let(type_=WorldMapping),
+            world := let(type_=WorldMapping, domain=None),
             world.name == asset_id,
         )
     )
     other_possible_name = "_".join(asset_id.split("_")[:-1])
     expr2 = the(
         entity(
-            world := let(type_=WorldMapping),
+            world := let(type_=WorldMapping, domain=None),
             world.name == other_possible_name,
         )
     )
