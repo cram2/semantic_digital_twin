@@ -1072,7 +1072,7 @@ class DresserFactory(
                 doors=dresser_world.get_semantic_annotations_by_type(Door),
             )
             dresser_world.add_semantic_annotation(
-                semantic_dresser_annotation, skip_duplicates=True
+                semantic_dresser_annotation
             )
             dresser_world.name = self.name.name
 

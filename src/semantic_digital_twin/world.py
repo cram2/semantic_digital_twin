@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -683,23 +684,19 @@ class World:
     def add_body(
         self,
         body: KinematicStructureEntity,
-        assign_unique_name_to_duplicates: bool = False,
     ) -> Optional[int]:
         return self.add_kinematic_structure_entity(
-            body, assign_unique_name_to_duplicates
+            body
         )
 
     def add_kinematic_structure_entity(
         self,
         kinematic_structure_entity: KinematicStructureEntity,
-        assign_unique_name_to_duplicates: bool = False,
     ) -> int:
         """
         Add a kinematic_structure_entity to the world if it does not exist already.
 
         :param kinematic_structure_entity: The kinematic_structure_entity to add.
-        :param assign_unique_name_to_duplicates: If True, the kinematic_structure_entity will be added under a different name, if
-        the name already exists. If False, an error will be raised. Default is False.
         :return: The index of the added kinematic_structure_entity.
         """
         logger.info(
@@ -717,10 +714,9 @@ class World:
 
         try:
             self.get_kinematic_structure_entity_by_name(kinematic_structure_entity.name)
-            if not assign_unique_name_to_duplicates:
-                raise DuplicateKinematicStructureEntityError(
-                    [kinematic_structure_entity.name]
-                )
+            raise DuplicateKinematicStructureEntityError(
+                [kinematic_structure_entity.name]
+            )
             kinematic_structure_entity.name.name = (
                 kinematic_structure_entity.name.name
                 + f"_{id_generator(kinematic_structure_entity)}"
@@ -779,7 +775,7 @@ class World:
         self.degrees_of_freedom.append(dof)
 
     def add_semantic_annotation(
-        self, semantic_annotation: SemanticAnnotation, skip_duplicates: bool = False
+        self, semantic_annotation: SemanticAnnotation
     ) -> None:
         """
         Adds a semantic annotation to the current list of semantic annotations if it doesn't already exist. Ensures
@@ -788,14 +784,12 @@ class World:
 
         :param semantic_annotation: The semantic annotation instance to be added. Its name must be unique within
             the current context.
-        :param skip_duplicates: Whether to raise an error or not when a semantic annotation already exists.
 
         :raises AddingAnExistingSemanticAnnotationError: If skip_duplicates is False and a semantic annotation with the same name and type already exists.
         """
         try:
             self.get_semantic_annotation_by_name(semantic_annotation.name)
-            if not skip_duplicates:
-                raise AddingAnExistingSemanticAnnotationError(semantic_annotation)
+            raise AddingAnExistingSemanticAnnotationError(semantic_annotation)
         except WorldEntityNotFoundError:
             self._add_semantic_annotation(semantic_annotation)
 
@@ -1097,7 +1091,6 @@ class World:
         self,
         other: World,
         root_connection: Connection = None,
-        assign_unique_name_to_duplicates: bool = False,
     ) -> None:
         """
         Merge a world into the existing one by merging degrees of freedom, states, connections, and bodies.
@@ -1105,8 +1098,6 @@ class World:
 
         :param other: The world to be added.
         :param root_connection: If provided, this connection will be used to connect the two worlds. Otherwise, a new Connection6DoF will be created
-        :param assign_unique_name_to_duplicates: If True, bodies and semantic annotations with duplicate names will be renamed. If False, an error will be raised if duplicates are found.
-        :return: None
         """
         assert other is not self, "Cannot merge a world with itself."
 
@@ -1117,7 +1108,7 @@ class World:
             self._merge_connections_of_world(other)
             self._remove_kinematic_structure_entities_of_world(other)
             self._merge_semantic_annotations_of_world(
-                other, assign_unique_name_to_duplicates
+                other
             )
 
             if not root_connection and self_root:
@@ -1154,7 +1145,7 @@ class World:
             other.remove_kinematic_structure_entity(kinematic_structure_entity)
 
     def _merge_semantic_annotations_of_world(
-        self, other: World, assign_unique_name_to_duplicates: bool
+        self, other: World
     ):
         other_semantic_annotations = [
             semantic_annotation for semantic_annotation in other.semantic_annotations
@@ -1162,7 +1153,7 @@ class World:
         for semantic_annotation in other_semantic_annotations:
             other.remove_semantic_annotation(semantic_annotation)
             self.add_semantic_annotation(
-                semantic_annotation, skip_duplicates=assign_unique_name_to_duplicates
+                semantic_annotation
             )
 
     # %% Subgraph Targeting

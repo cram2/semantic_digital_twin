@@ -1,3 +1,4 @@
+import uuid
 from dataclasses import dataclass
 
 from krrood.entity_query_language.predicate import Symbol
@@ -8,8 +9,21 @@ from krrood.adapters.json_serializer import SubclassJSONSerializer
 
 @dataclass
 class PrefixedName(Symbol, SubclassJSONSerializer):
+    """
+    A class that represents an entity with a name and an optional prefix.
+    We have the assumption every PrefixedName can only exist once in a given world.
+    PrefixedName.name may be duplicate, but PrefixedName.prefix is always unique.
+    """
+
     name: str
+    """
+    The name of the entity.
+    """
+
     prefix: Optional[str] = None
+    """
+    Unique identifier of the entity.
+    """
 
     def __hash__(self):
         return hash((self.prefix, self.name))
@@ -40,3 +54,7 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
 
     def __ge__(self, other):
         return str(self) >= str(other)
+
+    def ensure_unique(self):
+        """Appends a random UUIDv4 (~2¹²² possibilities) to the name."""
+        self.name = f"{self.name}_{uuid.uuid4()}"
