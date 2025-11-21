@@ -6,7 +6,12 @@ import numpy
 from typing_extensions import Optional, Set, List
 
 from ..exceptions import WorldEntityNotFoundError
-from ..spatial_types.spatial_types import TransformationMatrix
+from ..spatial_types.spatial_types import (
+    TransformationMatrix,
+    Quaternion,
+    RotationMatrix,
+    Point3,
+)
 from ..world_description.geometry import (
     Box,
     Sphere,
@@ -16,6 +21,13 @@ from ..world_description.geometry import (
     Color,
     TriangleMesh,
 )
+from ..world_description.inertial_properties import (
+    Inertial,
+    InertiaTensor,
+    PrincipalMoments,
+    PrincipalAxes,
+)
+from ..world_description.connection_properties import JointDynamics
 from ..world_description.shape_collection import ShapeCollection
 from ..world_description.world_entity import KinematicStructureEntity
 
@@ -23,7 +35,6 @@ from multiverse_parser import (
     InertiaSource,
     UsdImporter,
     MjcfImporter,
-    UrdfImporter,
     BodyBuilder,
     JointBuilder,
     JointType,
@@ -31,7 +42,7 @@ from multiverse_parser import (
     GeomType,
 )
 from multiverse_parser.utils import get_relative_transform
-from pxr import UsdUrdf, UsdGeom, UsdPhysics, Gf  # type: ignore
+from pxr import UsdUrdf, UsdMujoco, UsdGeom, UsdPhysics, Gf  # type: ignore
 
 from ..world_description.connections import (
     RevoluteConnection,
@@ -158,6 +169,29 @@ def parse_cylinder(cylinder: UsdGeom.Cylinder, origin_transform: TransformationM
     )
 
 
+def parse_plane(
+    plane: UsdGeom.Mesh, origin_transform: TransformationMatrix, color: Color
+) -> Shape:
+    """
+    Parses a plane geometry from a UsdGeom.Mesh instance.
+
+    :param plane: The UsdGeom.Mesh instance representing the plane geometry.
+    :param origin_transform: The origin transformation matrix for the plane.
+    :param color: The color of the plane.
+    :return: A Plane shape representing the parsed plane geometry.
+    """
+    size_x = plane.GetExtentAttr().Get()[1][0] - plane.GetExtentAttr().Get()[0][0]
+    size_y = plane.GetExtentAttr().Get()[1][1] - plane.GetExtentAttr().Get()[0][1]
+    size_z = plane.GetExtentAttr().Get()[1][2] - plane.GetExtentAttr().Get()[0][2]
+    if numpy.isclose(size_z, 0.0):
+        size_z = 0
+    return Box(
+        origin=origin_transform,
+        scale=Scale(size_x, size_y, size_z),
+        color=color,
+    )
+
+
 def parse_mesh(
     gprim: UsdGeom.Gprim,
     local_transformation: Gf.Matrix4d,
@@ -231,6 +265,8 @@ def parse_geometry(body_builder: BodyBuilder) -> tuple[List[Shape], List[Shape]]
                 shape = parse_sphere(UsdGeom.Sphere(gprim_prim), origin_transform, color)  # type: ignore
             case GeomType.CYLINDER:
                 shape = parse_cylinder(UsdGeom.Cylinder(gprim_prim), origin_transform, color)  # type: ignore
+            case GeomType.PLANE:
+                shape = parse_plane(UsdGeom.Mesh(gprim_prim), origin_transform, color)  # type: ignore
             case GeomType.MESH:
                 shape = parse_mesh(gprim, local_transformation, translation, quat)
         if shape is None:
@@ -322,10 +358,41 @@ def parse_dof(
         return dof
 
 
+def parse_inertial(body_builder: BodyBuilder) -> Optional[Inertial]:
+    """
+    Parses the inertial properties from a BodyBuilder instance.
+
+    :param body_builder: The BodyBuilder instance to parse.
+    :return: An Inertial instance representing the parsed inertial properties, or None if no inertial properties are found.
+    """
+    xform_prim = body_builder.xform.GetPrim()
+    if not xform_prim.HasAPI(UsdPhysics.MassAPI):  # type: ignore
+        return None
+    physics_mass_api = UsdPhysics.MassAPI(xform_prim)  # type: ignore
+    mass = physics_mass_api.GetMassAttr().Get()
+    center_of_mass = physics_mass_api.GetCenterOfMassAttr().Get()
+    center_of_mass = Point3.from_iterable(center_of_mass)
+    principle_axes_quat = physics_mass_api.GetPrincipalAxesAttr().Get()
+    principle_axes_quat = Quaternion.from_iterable(
+        [principle_axes_quat.GetReal(), *principle_axes_quat.GetImaginary()]
+    )
+    principle_moments = physics_mass_api.GetDiagonalInertiaAttr().Get()
+    inertia_tensor = InertiaTensor.from_principal_moments_and_axes(
+        moments=PrincipalMoments.from_values(*principle_moments),
+        axes=PrincipalAxes.from_rotation_matrix(
+            RotationMatrix.from_quaternion(principle_axes_quat)
+        ),
+    )
+    inertial = Inertial(
+        mass=mass, center_of_mass=center_of_mass, inertia=inertia_tensor
+    )
+    return inertial
+
+
 @dataclass
 class MultiParser:
     """
-    Class to parse any scene description files to worlds.
+    Class to parse any scene description file to World.
     """
 
     file_path: str
@@ -471,6 +538,15 @@ class MultiParser:
                 free_variable_name = urdf_joint_api.GetJointRel().GetTargets()[0].name
                 offset = urdf_joint_api.GetOffsetAttr().Get()
                 multiplier = urdf_joint_api.GetMultiplierAttr().Get()
+
+        armature = 0.0
+        dry_friction = 0.0
+        damping = 0.0
+        if joint_prim.HasAPI(UsdMujoco.MujocoJointAPI):  # type: ignore
+            mujoco_joint_api = UsdMujoco.MujocoJointAPI(joint_prim)  # type: ignore
+            armature = mujoco_joint_api.GetArmatureAttr().Get()
+            dry_friction = mujoco_joint_api.GetFrictionlossAttr().Get()
+            damping = mujoco_joint_api.GetDampingAttr().Get()
         match joint_builder.type:
             case JointType.FREE:
                 raise NotImplementedError("Free joints are not supported yet.")
@@ -497,7 +573,13 @@ class MultiParser:
                     JointConnection = RevoluteConnection
                 else:
                     JointConnection = PrismaticConnection
+                joint_prop = JointDynamics(
+                    armature=armature,
+                    dry_friction=dry_friction,
+                    damping=damping,
+                )
                 return JointConnection(
+                    name=PrefixedName(joint_name),
                     parent=parent_body,
                     child=child_body,
                     parent_T_connection_expression=origin,
@@ -505,6 +587,7 @@ class MultiParser:
                     offset=offset,
                     axis=axis,
                     dof_name=dof.name,
+                    dynamics=joint_prop,
                 )
         raise NotImplementedError(
             f"Joint type {joint_builder.type} is not supported yet."
@@ -522,6 +605,9 @@ class MultiParser:
         )
         visuals, collisions = parse_geometry(body_builder)
         result = Body(name=name)
+        inertial = parse_inertial(body_builder)
+        if inertial is not None:
+            result.inertial = inertial
         visuals = ShapeCollection(visuals, reference_frame=result)
         collisions = ShapeCollection(collisions, reference_frame=result)
         result.visual = visuals

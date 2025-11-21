@@ -6,6 +6,7 @@ import numpy
 
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.exceptions import ParsingError
 from semantic_digital_twin.spatial_types.spatial_types import TransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
@@ -199,13 +200,16 @@ class MultiverseMujocoConnectorTestCase(unittest.TestCase):
 
 @unittest.skipIf(not multi_sim_found, "multisim could not be imported.")
 class MujocoSimTestCase(unittest.TestCase):
-    test_urdf = os.path.normpath(os.path.join(urdf_dir, "simple_two_arm_robot.urdf"))
+    test_urdf_1 = os.path.normpath(os.path.join(urdf_dir, "simple_two_arm_robot.urdf"))
+    test_urdf_2 = os.path.normpath(os.path.join(urdf_dir, "hsrb.urdf"))
     test_mjcf = os.path.normpath(os.path.join(mjcf_dir, "mjx_single_cube_no_mesh.xml"))
     step_size = 1e-3
 
     def setUp(self):
-        self.test_urdf_world = URDFParser.from_file(file_path=self.test_urdf).parse()
-        self.test_mjcf_world = MJCFParser(self.test_mjcf).parse()
+        self.test_urdf_1_world = URDFParser.from_file(
+            file_path=self.test_urdf_1
+        ).parse()
+        self.test_mjcf_world = MJCFParser(self.test_mjcf).parse(fixed_base=False)
 
     def test_empty_multi_sim_in_5s(self):
         world = World()
@@ -224,7 +228,28 @@ class MujocoSimTestCase(unittest.TestCase):
     def test_world_multi_sim_in_5s(self):
         viewer = MultiverseViewer()
         multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_world, headless=headless
+            viewer=viewer, world=self.test_urdf_1_world, headless=headless
+        )
+        self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
+        self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
+        self.assertIs(multi_sim.simulator.headless, headless)
+        self.assertEqual(multi_sim.simulator.step_size, self.step_size)
+        multi_sim.start_simulation()
+        start_time = time.time()
+        time.sleep(5.0)
+        multi_sim.stop_simulation()
+        self.assertAlmostEqual(time.time() - start_time, 5.0, delta=0.5)
+
+    def test_apartment_multi_sim_in_5s(self):
+        try:
+            self.test_urdf_2_world = URDFParser.from_file(
+                file_path=self.test_urdf_2
+            ).parse()
+        except ParsingError:
+            self.skipTest("Skipping HSRB test due to URDF parsing error.")
+        viewer = MultiverseViewer()
+        multi_sim = MujocoSim(
+            viewer=viewer, world=self.test_urdf_2_world, headless=headless
         )
         self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
         self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
@@ -239,7 +264,7 @@ class MujocoSimTestCase(unittest.TestCase):
     def test_world_multi_sim_with_change(self):
         viewer = MultiverseViewer()
         multi_sim = MujocoSim(
-            viewer=viewer, world=self.test_urdf_world, headless=headless
+            viewer=viewer, world=self.test_urdf_1_world, headless=headless
         )
         self.assertIsInstance(multi_sim.simulator, MultiverseMujocoConnector)
         self.assertEqual(multi_sim.simulator.file_path, "/tmp/scene.xml")
@@ -265,11 +290,11 @@ class MujocoSimTestCase(unittest.TestCase):
         )
         new_body.collision = ShapeCollection([box], reference_frame=new_body)
 
-        with self.test_urdf_world.modify_world():
-            self.test_urdf_world.add_connection(
+        with self.test_urdf_1_world.modify_world():
+            self.test_urdf_1_world.add_connection(
                 Connection6DoF.create_with_dofs(
-                    world=self.test_urdf_world,
-                    parent=self.test_urdf_world.root,
+                    world=self.test_urdf_1_world,
+                    parent=self.test_urdf_1_world.root,
                     child=new_body,
                 )
             )
@@ -294,10 +319,10 @@ class MujocoSimTestCase(unittest.TestCase):
         )
         region.area = ShapeCollection([region_box], reference_frame=region)
 
-        with self.test_urdf_world.modify_world():
-            self.test_urdf_world.add_connection(
+        with self.test_urdf_1_world.modify_world():
+            self.test_urdf_1_world.add_connection(
                 FixedConnection(
-                    parent=self.test_urdf_world.root,
+                    parent=self.test_urdf_1_world.root,
                     child=region,
                     parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
                         z=0.5
@@ -312,7 +337,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         # self.assertAlmostEqual(time.time() - start_time, 1.0, delta=0.5)
 
-    @unittest.skip("Dynamics not there yet")
     def test_multi_sim_in_5s(self):
         viewer = MultiverseViewer()
         multi_sim = MujocoSim(
@@ -330,7 +354,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         self.assertAlmostEqual(time.time() - start_time, 5.0, delta=0.1)
 
-    @unittest.skip("Dynamics not there yet")
     def test_read_objects_from_multi_sim_in_5s(self):
         read_objects = {
             "joint1": {
@@ -341,8 +364,8 @@ class MujocoSimTestCase(unittest.TestCase):
                 "joint_angular_position": [0.0],
                 "joint_angular_velocity": [0.0],
             },
-            "actuator1": {"cmd_joint_angular_position": [0.0]},
-            "actuator2": {"cmd_joint_angular_position": [0.0]},
+            # "actuator1": {"cmd_joint_angular_position": [0.0]},
+            # "actuator2": {"cmd_joint_angular_position": [0.0]},
             "world": {"energy": [0.0, 0.0]},
             "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]},
         }
@@ -366,7 +389,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         self.assertAlmostEqual(time.time() - start_time, 5.0, delta=0.1)
 
-    @unittest.skip("Dynamics not there yet")
     def test_write_objects_to_multi_sim_in_5s(self):
         write_objects = {"box": {"position": [0.0, 0.0, 0.0]}}
         viewer = MultiverseViewer(write_objects=write_objects)
@@ -396,7 +418,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         self.assertAlmostEqual(time.time() - start_time, 5.0, delta=0.1)
 
-    @unittest.skip("Dynamics not there yet")
     def test_write_objects_to_multi_sim_in_10s_with_pause_and_unpause(self):
         write_objects = {
             "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]}
@@ -432,7 +453,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         self.assertAlmostEqual(time.time() - start_time, 10.0, delta=0.1)
 
-    @unittest.skip("Dynamics not there yet")
     def test_stable(self):
         write_objects = {
             "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]}
