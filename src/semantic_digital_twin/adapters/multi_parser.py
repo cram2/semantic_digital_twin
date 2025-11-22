@@ -6,7 +6,13 @@ import numpy
 from typing_extensions import Optional, Set, List
 
 from ..exceptions import WorldEntityNotFoundError
-from ..spatial_types.spatial_types import TransformationMatrix
+from ..spatial_types.spatial_types import (
+    TransformationMatrix,
+    Quaternion,
+    RotationMatrix,
+    Point3,
+)
+from ..world_description.actuators import Actuator, MujocoActuator
 from ..world_description.geometry import (
     Box,
     Sphere,
@@ -16,6 +22,13 @@ from ..world_description.geometry import (
     Color,
     TriangleMesh,
 )
+from ..world_description.inertial_properties import (
+    Inertial,
+    InertiaTensor,
+    PrincipalMoments,
+    PrincipalAxes,
+)
+from ..world_description.connection_properties import JointDynamics
 from ..world_description.shape_collection import ShapeCollection
 from ..world_description.world_entity import KinematicStructureEntity
 
@@ -23,7 +36,6 @@ from multiverse_parser import (
     InertiaSource,
     UsdImporter,
     MjcfImporter,
-    UrdfImporter,
     BodyBuilder,
     JointBuilder,
     JointType,
@@ -31,7 +43,7 @@ from multiverse_parser import (
     GeomType,
 )
 from multiverse_parser.utils import get_relative_transform
-from pxr import UsdUrdf, UsdGeom, UsdPhysics, Gf  # type: ignore
+from pxr import UsdUrdf, UsdMujoco, UsdGeom, UsdPhysics, Gf  # type: ignore
 
 from ..world_description.connections import (
     RevoluteConnection,
@@ -158,6 +170,29 @@ def parse_cylinder(cylinder: UsdGeom.Cylinder, origin_transform: TransformationM
     )
 
 
+def parse_plane(
+    plane: UsdGeom.Mesh, origin_transform: TransformationMatrix, color: Color
+) -> Shape:
+    """
+    Parses a plane geometry from a UsdGeom.Mesh instance.
+
+    :param plane: The UsdGeom.Mesh instance representing the plane geometry.
+    :param origin_transform: The origin transformation matrix for the plane.
+    :param color: The color of the plane.
+    :return: A Plane shape representing the parsed plane geometry.
+    """
+    size_x = plane.GetExtentAttr().Get()[1][0] - plane.GetExtentAttr().Get()[0][0]
+    size_y = plane.GetExtentAttr().Get()[1][1] - plane.GetExtentAttr().Get()[0][1]
+    size_z = plane.GetExtentAttr().Get()[1][2] - plane.GetExtentAttr().Get()[0][2]
+    if numpy.isclose(size_z, 0.0):
+        size_z = 0
+    return Box(
+        origin=origin_transform,
+        scale=Scale(size_x, size_y, size_z),
+        color=color,
+    )
+
+
 def parse_mesh(
     gprim: UsdGeom.Gprim,
     local_transformation: Gf.Matrix4d,
@@ -231,6 +266,8 @@ def parse_geometry(body_builder: BodyBuilder) -> tuple[List[Shape], List[Shape]]
                 shape = parse_sphere(UsdGeom.Sphere(gprim_prim), origin_transform, color)  # type: ignore
             case GeomType.CYLINDER:
                 shape = parse_cylinder(UsdGeom.Cylinder(gprim_prim), origin_transform, color)  # type: ignore
+            case GeomType.PLANE:
+                shape = parse_plane(UsdGeom.Mesh(gprim_prim), origin_transform, color)  # type: ignore
             case GeomType.MESH:
                 shape = parse_mesh(gprim, local_transformation, translation, quat)
         if shape is None:
@@ -322,10 +359,41 @@ def parse_dof(
         return dof
 
 
+def parse_inertial(body_builder: BodyBuilder) -> Optional[Inertial]:
+    """
+    Parses the inertial properties from a BodyBuilder instance.
+
+    :param body_builder: The BodyBuilder instance to parse.
+    :return: An Inertial instance representing the parsed inertial properties, or None if no inertial properties are found.
+    """
+    xform_prim = body_builder.xform.GetPrim()
+    if not xform_prim.HasAPI(UsdPhysics.MassAPI):  # type: ignore
+        return None
+    physics_mass_api = UsdPhysics.MassAPI(xform_prim)  # type: ignore
+    mass = physics_mass_api.GetMassAttr().Get()
+    center_of_mass = physics_mass_api.GetCenterOfMassAttr().Get()
+    center_of_mass = Point3.from_iterable(center_of_mass)
+    principle_axes_quat = physics_mass_api.GetPrincipalAxesAttr().Get()
+    principle_axes_quat = Quaternion.from_iterable(
+        [principle_axes_quat.GetReal(), *principle_axes_quat.GetImaginary()]
+    )
+    principle_moments = physics_mass_api.GetDiagonalInertiaAttr().Get()
+    inertia_tensor = InertiaTensor.from_principal_moments_and_axes(
+        moments=PrincipalMoments.from_values(*principle_moments),
+        axes=PrincipalAxes.from_rotation_matrix(
+            RotationMatrix.from_quaternion(principle_axes_quat)
+        ),
+    )
+    inertial = Inertial(
+        mass=mass, center_of_mass=center_of_mass, inertia=inertia_tensor
+    )
+    return inertial
+
+
 @dataclass
 class MultiParser:
     """
-    Class to parse any scene description files to worlds.
+    Class to parse any scene description file to World.
     """
 
     file_path: str
@@ -395,6 +463,8 @@ class MultiParser:
                 joints += self.parse_joints(body_builder=body_builder, world=world)
             for joint in joints:
                 world.add_connection(joint)
+            for actuator in self.parse_actuators(factory=factory, world=world):
+                world.add_actuator(actuator)
 
             free_body_names = get_free_body_names(factory=factory)
 
@@ -471,6 +541,15 @@ class MultiParser:
                 free_variable_name = urdf_joint_api.GetJointRel().GetTargets()[0].name
                 offset = urdf_joint_api.GetOffsetAttr().Get()
                 multiplier = urdf_joint_api.GetMultiplierAttr().Get()
+
+        armature = 0.0
+        dry_friction = 0.0
+        damping = 0.0
+        if joint_prim.HasAPI(UsdMujoco.MujocoJointAPI):  # type: ignore
+            mujoco_joint_api = UsdMujoco.MujocoJointAPI(joint_prim)  # type: ignore
+            armature = mujoco_joint_api.GetArmatureAttr().Get()
+            dry_friction = mujoco_joint_api.GetFrictionlossAttr().Get()
+            damping = mujoco_joint_api.GetDampingAttr().Get()
         match joint_builder.type:
             case JointType.FREE:
                 raise NotImplementedError("Free joints are not supported yet.")
@@ -497,7 +576,13 @@ class MultiParser:
                     JointConnection = RevoluteConnection
                 else:
                     JointConnection = PrismaticConnection
+                joint_prop = JointDynamics(
+                    armature=armature,
+                    dry_friction=dry_friction,
+                    damping=damping,
+                )
                 return JointConnection(
+                    name=PrefixedName(joint_name),
                     parent=parent_body,
                     child=child_body,
                     parent_T_connection_expression=origin,
@@ -505,6 +590,7 @@ class MultiParser:
                     offset=offset,
                     axis=axis,
                     dof_name=dof.name,
+                    dynamics=joint_prop,
                 )
         raise NotImplementedError(
             f"Joint type {joint_builder.type} is not supported yet."
@@ -522,11 +608,54 @@ class MultiParser:
         )
         visuals, collisions = parse_geometry(body_builder)
         result = Body(name=name)
+        inertial = parse_inertial(body_builder)
+        if inertial is not None:
+            result.inertial = inertial
         visuals = ShapeCollection(visuals, reference_frame=result)
         collisions = ShapeCollection(collisions, reference_frame=result)
         result.visual = visuals
         result.collision = collisions
         return result
+
+    def parse_actuators(self, factory: Factory, world: World) -> List[Actuator]:
+        """
+        Parses actuators from a Factory instance.
+
+        :param factory: The Factory instance to parse.
+        :param world: The World instance to add the actuators to.
+        :return: A list of Actuator instances representing the parsed actuators.
+        """
+        return []
+
+
+import mujoco
+
+
+limited_dict = {
+    "auto": mujoco.mjtLimited.mjLIMITED_AUTO,
+    "true": mujoco.mjtLimited.mjLIMITED_TRUE,
+    "false": mujoco.mjtLimited.mjLIMITED_FALSE,
+}
+bias_type_dict = {
+    "none": mujoco.mjtBias.mjBIAS_NONE,
+    "affine": mujoco.mjtBias.mjBIAS_AFFINE,
+    "muscle": mujoco.mjtBias.mjBIAS_MUSCLE,
+    "user": mujoco.mjtBias.mjBIAS_USER,
+}
+dyn_type_dict = {
+    "none": mujoco.mjtDyn.mjDYN_NONE,
+    "integrator": mujoco.mjtDyn.mjDYN_INTEGRATOR,
+    "filter": mujoco.mjtDyn.mjDYN_FILTER,
+    "filterexact": mujoco.mjtDyn.mjDYN_FILTEREXACT,
+    "muscle": mujoco.mjtDyn.mjDYN_MUSCLE,
+    "user": mujoco.mjtDyn.mjDYN_USER,
+}
+gain_type_dict = {
+    "fixed": mujoco.mjtGain.mjGAIN_FIXED,
+    "affine": mujoco.mjtGain.mjGAIN_AFFINE,
+    "muscle": mujoco.mjtGain.mjGAIN_MUSCLE,
+    "user": mujoco.mjtGain.mjGAIN_USER,
+}
 
 
 class MJCFParser(MultiParser):
@@ -556,6 +685,49 @@ class MJCFParser(MultiParser):
             inertia_source=inertia_source,
             default_rgba=default_rgba,
         )
+
+    def parse_actuators(self, factory: Factory, world: World) -> List[MujocoActuator]:
+        actuators = []
+        actuator_prim = factory.world_builder.stage.GetPrimAtPath("/mujoco/actuator")
+        if not actuator_prim.IsValid():
+            return actuators
+        for mujoco_actuator in [
+            UsdMujoco.MujocoActuator(actuator_prim_child)  # type: ignore
+            for actuator_prim_child in actuator_prim.GetChildren()
+            if actuator_prim_child.IsA(UsdMujoco.MujocoActuator)  # type: ignore
+        ]:
+            joint_path = mujoco_actuator.GetJointRel().GetTargets()[0]
+            assert factory.world_builder.stage.GetPrimAtPath(joint_path).IsA(
+                UsdPhysics.Joint
+            )
+            actuator_name = mujoco_actuator.GetPrim().GetName()
+            actuator = MujocoActuator(
+                name=PrefixedName(actuator_name),
+                activation_limited=limited_dict[
+                    mujoco_actuator.GetActlimitedAttr().Get()
+                ],
+                activation_range=[*mujoco_actuator.GetActrangeAttr().Get()],
+                ctrl_limited=limited_dict[mujoco_actuator.GetCtrllimitedAttr().Get()],
+                ctrl_range=[*mujoco_actuator.GetCtrlrangeAttr().Get()],
+                force_limited=limited_dict[mujoco_actuator.GetForcelimitedAttr().Get()],
+                force_range=[*mujoco_actuator.GetForcerangeAttr().Get()],
+                bias_parameters=[*mujoco_actuator.GetBiasprmAttr().Get()],
+                bias_type=bias_type_dict[mujoco_actuator.GetBiastypeAttr().Get()],
+                dynamics_parameters=[*mujoco_actuator.GetDynprmAttr().Get()],
+                dynamics_type=dyn_type_dict[mujoco_actuator.GetDyntypeAttr().Get()],
+                gain_parameters=[*mujoco_actuator.GetGainprmAttr().Get()],
+                gain_type=gain_type_dict[mujoco_actuator.GetGaintypeAttr().Get()],
+            )
+            joint_name = joint_path.name
+            connection = world.get_connection_by_name(joint_name)
+            dofs = list(connection.dofs)
+            assert (
+                len(dofs) == 1
+            ), f"Actuator {actuator_name} is associated with joint {joint_name} which has {len(connection.dofs)} DOFs, but only single-DOF joints are supported for actuators."
+            dof = dofs[0]
+            actuator.add_dof(dof)
+            actuators.append(actuator)
+        return actuators
 
 
 class USDParser(MultiParser):

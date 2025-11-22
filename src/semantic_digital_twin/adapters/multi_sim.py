@@ -1,4 +1,5 @@
 import inspect
+import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -12,7 +13,6 @@ from typing import (
     Optional,
     Union,
 )
-from typing_extensions import Self
 
 import numpy
 from mujoco_connector import MultiverseMujocoConnector
@@ -31,13 +31,15 @@ from ..callbacks.callback import ModelChangeCallback
 from ..datastructures.prefixed_name import PrefixedName
 from ..spatial_types.spatial_types import TransformationMatrix, Point3, Quaternion
 from ..world import World
+from ..world_description.actuators import Actuator, MujocoActuator
 from ..world_description.connections import (
     RevoluteConnection,
     PrismaticConnection,
     ActiveConnection1DOF,
     FixedConnection,
+    Connection6DoF,
 )
-from ..world_description.geometry import Box, Cylinder, Sphere, Shape
+from ..world_description.geometry import Box, Cylinder, Sphere, Shape, FileMesh
 from ..world_description.world_entity import (
     Region,
     Body,
@@ -96,106 +98,6 @@ class InertialConverter:
         assert all(
             i >= 0 for i in self.diagonal_inertia
         ), "Inertia values must be non-negative."
-
-    @classmethod
-    def from_inertia(
-        cls,
-        mass: float,
-        inertia_pos: Point3,
-        inertia_quat: Quaternion,
-        inertia: List[float],
-    ) -> Self:
-        """
-        Converts inertia given as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] to diagonal form and updates the inertia quaternion.
-
-        :param mass: The mass of the body.
-        :param inertia_pos: The position of the inertia frame relative to the body frame [x, y, z].
-        :param inertia_quat: The orientation of the inertia frame relative to the body frame as a quaternion [qw, qx, qy, qz].
-        :param inertia: The inertia tensor in the form [Ixx, Iyy, Izz, Ixy, Ixz, Iyz].
-
-        :return: An InertialConverter instance with diagonal inertia and updated quaternion.
-        """
-        inertia_matrix = [
-            inertia[0],
-            inertia[3],
-            inertia[4],
-            inertia[3],
-            inertia[1],
-            inertia[5],
-            inertia[4],
-            inertia[5],
-            inertia[2],
-        ]
-        return cls.from_inertia_matrix(
-            mass=mass,
-            inertia_pos=inertia_pos,
-            inertia_quat=inertia_quat,
-            inertia_matrix=inertia_matrix,
-        )
-
-    @classmethod
-    def from_inertia_matrix(
-        cls,
-        mass: float,
-        inertia_pos: Point3,
-        inertia_quat: Quaternion,
-        inertia_matrix: List[float],
-    ) -> Self:
-        """
-        Converts inertia given as a 3x3 matrix in row-major order to diagonal form and updates the inertia quaternion.
-
-        :param mass: The mass of the body.
-        :param inertia_pos: The position of the inertia frame relative to the body frame [x, y, z].
-        :param inertia_quat: The orientation of the inertia frame relative to the body frame as a quaternion [qw, qx, qy, qz].
-        :param inertia_matrix: The inertia tensor as a 3x3 matrix in row-major order [Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz].
-
-        :return: An InertialConverter instance with diagonal inertia and updated quaternion.
-        """
-        return cls._convert_inertia(
-            mass=mass,
-            inertia_pos=inertia_pos,
-            inertia_quat=inertia_quat,
-            inertia_matrix=numpy.array(inertia_matrix).reshape(3, 3),
-        )
-
-    @classmethod
-    def _convert_inertia(cls, mass, inertia_pos, inertia_quat, inertia_matrix) -> Self:
-        """
-        Diagonalizes the inertia matrix and updates the inertia quaternion.
-
-        :param mass: The mass of the body.
-        :param inertia_pos: The position of the inertia frame relative to the body frame [x, y, z].
-        :param inertia_quat: The orientation of the inertia frame relative to the body frame as a quaternion [qw, qx, qy, qz].
-        :param inertia_matrix: The inertia tensor as a 3x3 numpy array in row-major order [Ixx, Ixy, Ixz; Iyx, Iyy, Iyz; Izx, Izy, Izz].
-
-        :return: An InertialConverter instance with diagonal inertia and updated quaternion.
-        """
-        eigenvalues, eigenvectors = numpy.linalg.eigh(inertia_matrix)
-        eigenvalues, eigenvectors = cls._sort_and_adjust(eigenvalues, eigenvectors)
-        inertia_quat = cls._update_quaternion(inertia_quat, eigenvectors)
-        diagonal_inertia = eigenvalues.tolist()
-        return cls(
-            mass=mass,
-            inertia_pos=inertia_pos,
-            inertia_quat=inertia_quat,
-            diagonal_inertia=diagonal_inertia,
-        )
-
-    @staticmethod
-    def _sort_and_adjust(eigenvalues: numpy.ndarray, eigenvectors: numpy.ndarray):
-        """
-        Sorts eigenvalues and eigenvectors, and ensures a right-handed coordinate system.
-
-        :param eigenvalues: The eigenvalues of the inertia matrix.
-        :param eigenvectors: The eigenvectors of the inertia matrix.
-
-        :return: Sorted eigenvalues and adjusted eigenvectors.
-        """
-        idx = numpy.argsort(eigenvalues)
-        eigenvalues, eigenvectors = eigenvalues[idx], eigenvectors[:, idx]
-        if numpy.linalg.det(eigenvectors) < 0:
-            eigenvectors[:, 0] *= -1
-        return eigenvalues, eigenvectors
 
     @staticmethod
     def _update_quaternion(
@@ -357,54 +259,28 @@ class BodyConverter(KinematicStructureEntityConverter, ABC):
         :return: A dictionary of body properties, including additional mass and inertia properties.
         """
         body_props = KinematicStructureEntityConverter._convert(self, entity)
-        mass = 1e-3  # TODO: Take from entity
-        inertia_pos = Point3(
-            x_init=0.0, y_init=0.0, z_init=0.0
-        )  # TODO: Take from entity
-        inertia_quat = Quaternion(
-            w_init=1.0, x_init=0.0, y_init=0.0, z_init=0.0
-        )  # TODO: Take from entity
-        diagonal_inertia = [1.5e-8, 1.5e-8, 1.5e-8]  # TODO: Take from entity
-        if diagonal_inertia is None:
-            inertia = body_props.get("inertia", None)
-            inertia_matrix = body_props.get("inertia_matrix", None)
-            if isinstance(inertia, list) and len(inertia) == 6:
-                inertial_converter = InertialConverter.from_inertia(
-                    mass=mass,
-                    inertia_pos=inertia_pos,
-                    inertia_quat=inertia_quat,
-                    inertia=inertia,
-                )
-            elif isinstance(inertia_matrix, list) and len(inertia_matrix) == 9:
-                inertial_converter = InertialConverter.from_inertia_matrix(
-                    mass=mass,
-                    inertia_pos=inertia_pos,
-                    inertia_quat=inertia_quat,
-                    inertia_matrix=inertia_matrix,
-                )
-            else:
-                raise ValueError(
-                    f"Body {entity.name.name} must have either 'diagonal_inertia' (3 elements), 'inertia' (6 elements) or 'inertia_matrix' (9 elements)."
-                )
-        else:
-            inertial_converter = InertialConverter(
-                mass=mass,
-                inertia_pos=inertia_pos,
-                inertia_quat=inertia_quat,
-                diagonal_inertia=diagonal_inertia,
+        inertial = entity.inertial
+        if inertial is not None:
+            mass = inertial.mass
+            inertia_pos = inertial.center_of_mass.to_np()[:3]
+            inertia = inertial.inertia
+            principal_moments, principal_axes = inertia.to_principal_moments_and_axes()
+            diagonal_inertia = principal_moments.data
+            inertia_quat = principal_axes.to_rotation_matrix().to_quaternion().to_np()
+            inertia_quat[:] = (
+                inertia_quat[3],
+                inertia_quat[0],
+                inertia_quat[1],
+                inertia_quat[2],
+            )  # Convert from (x, y, z, w) to (w, x, y, z)
+            body_props.update(
+                {
+                    self.mass_str: mass,
+                    self.inertia_pos_str: inertia_pos,
+                    self.inertia_quat_str: inertia_quat,
+                    self.diagonal_inertia_str: diagonal_inertia,
+                }
             )
-        mass = inertial_converter.mass
-        inertia_pos = inertial_converter.inertia_pos.to_np().tolist()[:3]
-        inertia_quat = inertial_converter.inertia_quat.to_np().tolist()[:4]
-        diagonal_inertia = inertial_converter.diagonal_inertia
-        body_props.update(
-            {
-                self.mass_str: mass,
-                self.inertia_pos_str: inertia_pos,
-                self.inertia_quat_str: inertia_quat,
-                self.diagonal_inertia_str: diagonal_inertia,
-            }
-        )
         return body_props
 
 
@@ -496,6 +372,14 @@ class CylinderConverter(ShapeConverter, ABC):
     entity_type: ClassVar[Type[Cylinder]] = Cylinder
 
 
+class MeshConverter(ShapeConverter, ABC):
+    """
+    Converts a Mesh object to a dictionary of mesh properties for Multiverse simulator.
+    """
+
+    entity_type: ClassVar[Type[FileMesh]] = FileMesh
+
+
 class ConnectionConverter(EntityConverter, ABC):
     """
     Converts a Connection object to a dictionary of joint properties for Multiverse simulator.
@@ -506,34 +390,14 @@ class ConnectionConverter(EntityConverter, ABC):
     The type of the entity to convert.
     """
 
-    pos_str: str
-    """
-    The key for the joint position property in the output dictionary.
-    """
-
-    quat_str: str
-    """
-    The key for the joint quaternion property in the output dictionary.
-    """
-
     def _convert(self, entity: Connection, **kwargs) -> Dict[str, Any]:
         """
         Converts a Connection object to a dictionary of joint properties for Multiverse simulator.
 
         :param entity: The Connection object to convert.
-        :return: A dictionary of joint properties, by default containing position and quaternion.
+        :return: A dictionary of joint properties.
         """
-        joint_props = EntityConverter._convert(self, entity)
-        px, py, pz, qw, qx, qy, qz = cas_pose_to_list(entity.origin)
-        joint_pos = [px, py, pz]
-        joint_quat = [qw, qx, qy, qz]
-        joint_props.update(
-            {
-                self.pos_str: joint_pos,
-                self.quat_str: joint_quat,
-            }
-        )
-        return joint_props
+        return EntityConverter._convert(self, entity)
 
 
 class Connection1DOFConverter(ConnectionConverter, ABC):
@@ -556,20 +420,53 @@ class Connection1DOFConverter(ConnectionConverter, ABC):
     The key for the joint range property in the output dictionary.
     """
 
+    pos_str: str
+    """
+    The key for the joint position property in the output dictionary.
+    """
+
+    quat_str: str
+    """
+    The key for the joint quaternion property in the output dictionary.
+    """
+
+    armature_str: str
+    """
+    The key for the joint armature property in the output dictionary.
+    """
+
+    dry_friction_str: str
+    """
+    The key for the joint dry friction property in the output dictionary.
+    """
+
+    damping_str: str
+    """
+    The key for the joint damping property in the output dictionary.
+    """
+
     def _convert(self, entity: ActiveConnection1DOF, **kwargs) -> Dict[str, Any]:
         """
         Converts an ActiveConnection1DOF object to a dictionary of joint properties for Multiverse simulator.
 
         :param entity: The ActiveConnection1DOF object to convert.
-        :return: A dictionary of joint properties, including additional axis and range properties.
+        :return: A dictionary of joint properties, including additional axis, range, position, quaternion, armature, dry friction, and damping properties.
         """
         joint_props = ConnectionConverter._convert(self, entity)
-        assert len(entity.dofs) == 1, "ActiveConnection1DOF must have exactly one DOF."
-        dof = list(entity.dofs)[0]
+        dofs = list(entity.dofs)
+        assert len(dofs) == 1, "ActiveConnection1DOF must have exactly one DOF."
+        dof = dofs[0]
+        joint_pos = [0.0, 0.0, 0.0]  # TODO: Use actual origin
+        joint_quat = [1.0, 0.0, 0.0, 0.0]
         joint_props.update(
             {
+                self.pos_str: joint_pos,
+                self.quat_str: joint_quat,
                 self.axis_str: entity.axis.to_np().tolist()[:3],
                 self.range_str: [dof.lower_limits.position, dof.upper_limits.position],
+                self.armature_str: entity.dynamics.armature,
+                self.dry_friction_str: entity.dynamics.dry_friction,
+                self.damping_str: entity.dynamics.damping,
             }
         )
         return joint_props
@@ -595,6 +492,50 @@ class ConnectionPrismaticConverter(Connection1DOFConverter, ABC):
     """
     The type of the entity to convert.
     """
+
+
+class Connection6DOFConverter(ConnectionConverter):
+    """
+    Converts a Connection6DoF object to a dictionary of 6DoF joint properties for Multiverse simulator.
+    """
+
+    entity_type: ClassVar[Type[Connection6DoF]] = Connection6DoF
+    """
+    The type of the entity to convert.
+    """
+
+    def _convert(self, entity: Connection6DoF, **kwargs) -> Dict[str, Any]:
+        """
+        Converts a Connection6DoF object to a dictionary of joint properties for Multiverse simulator.
+
+        :param entity: The Connection6DoF object to convert.
+        :return: A dictionary of joint properties.
+        """
+        joint_props = ConnectionConverter._convert(self, entity)
+        assert len(entity.dofs) == 7, "Connection6DoF must have exactly six DOFs."
+        return joint_props
+
+
+class ActuatorConverter(EntityConverter, ABC):
+    """
+    Converts an Actuator object to a dictionary of actuator properties for Multiverse simulator.
+    """
+
+    entity_type: ClassVar[Type[Actuator]] = Actuator
+    """
+    The type of the entity to convert.
+    """
+
+    def _convert(self, entity: Actuator, **kwargs) -> Dict[str, Any]:
+        """
+        Converts an Actuator object to a dictionary of joint properties for Multiverse simulator.
+
+        :param entity: The Actuator object to convert.
+        :return: A dictionary of actuator properties, by default containing list of DOF names.
+        """
+        actuator_props = EntityConverter._convert(self, entity)
+        actuator_props["dof_names"] = [dof.name.name for dof in entity.dofs]
+        return actuator_props
 
 
 class MujocoConverter(EntityConverter, ABC): ...
@@ -683,10 +624,24 @@ class MujocoCylinderConverter(MujocoGeomConverter, CylinderConverter):
         return shape_props
 
 
+class MujocoMeshConverter(MujocoGeomConverter, MeshConverter):
+    type: mujoco.mjtGeom = mujoco.mjtGeom.mjGEOM_MESH
+
+    def _post_convert(
+        self, entity: FileMesh, shape_props: Dict[str, Any], **kwargs
+    ) -> Dict[str, Any]:
+        shape_props.update(MujocoGeomConverter._post_convert(self, entity, shape_props))
+        shape_props.update({"mesh": entity})
+        return shape_props
+
+
 class MujocoJointConverter(ConnectionConverter, ABC):
     pos_str: str = "pos"
     quat_str: str = "quat"
     type: mujoco.mjtJoint
+    armature_str: str = "armature"
+    dry_friction_str: str = "frictionloss"
+    damping_str: str = "damping"
 
     def _post_convert(
         self, entity: Connection, joint_props: Dict[str, Any], **kwargs
@@ -716,11 +671,55 @@ class MujocoRevoluteJointConverter(
 ):
     type: mujoco.mjtJoint = mujoco.mjtJoint.mjJNT_HINGE
 
+    def _post_convert(
+        self, entity: ActiveConnection1DOF, joint_props: Dict[str, Any], **kwargs
+    ) -> Dict[str, Any]:
+        joint_props = super()._post_convert(entity, joint_props, **kwargs)
+        joint_range = joint_props.pop("range")
+        if not any(limit is None for limit in joint_range):
+            joint_range = [numpy.rad2deg(limit) for limit in joint_range]
+            joint_props["range"] = joint_range
+        return joint_props
+
 
 class MujocoPrismaticJointConverter(
     Mujoco1DOFJointConverter, ConnectionPrismaticConverter
 ):
     type: mujoco.mjtJoint = mujoco.mjtJoint.mjJNT_SLIDE
+
+
+class Mujoco6DOFJointConverter(MujocoJointConverter, Connection6DOFConverter):
+    type: mujoco.mjtJoint = mujoco.mjtJoint.mjJNT_FREE
+
+
+class MujocoActuatorConverter(ActuatorConverter, ABC):
+
+    entity_type: ClassVar[Type[MujocoActuator]] = MujocoActuator
+
+    def _post_convert(
+        self, entity: MujocoActuator, actuator_props: Dict[str, Any], **kwargs
+    ) -> Dict[str, Any]:
+        return actuator_props
+
+
+class MujocoGeneralActuatorConverter(MujocoActuatorConverter, ActuatorConverter):
+
+    def _post_convert(
+        self, entity: MujocoActuator, actuator_props: Dict[str, Any], **kwargs
+    ) -> Dict[str, Any]:
+        actuator_props["actlimited"] = entity.activation_limited
+        actuator_props["actrange"] = entity.activation_range
+        actuator_props["ctrllimited"] = entity.ctrl_limited
+        actuator_props["ctrlrange"] = entity.ctrl_range
+        actuator_props["forcelimited"] = entity.force_limited
+        actuator_props["forcerange"] = entity.force_range
+        actuator_props["biasprm"] = entity.bias_parameters
+        actuator_props["biastype"] = entity.bias_type
+        actuator_props["dynprm"] = entity.dynamics_parameters
+        actuator_props["dyntype"] = entity.dynamics_type
+        actuator_props["gainprm"] = entity.gain_parameters
+        actuator_props["gaintype"] = entity.gain_type
+        return actuator_props
 
 
 @dataclass
@@ -761,6 +760,9 @@ class MultiSimBuilder(ABC):
 
         for connection in world.connections:
             self._build_connection(connection=connection)
+
+        for actuator in world.actuators:
+            self._build_actuator(actuator=actuator)
 
         self._end_build(file_path=file_path)
 
@@ -852,6 +854,15 @@ class MultiSimBuilder(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def _build_actuator(self, actuator):
+        """
+        Builds an actuator in the simulator.
+
+        :param actuator: The actuator to build.
+        """
+        raise NotImplementedError
+
 
 @dataclass
 class MujocoBuilder(MultiSimBuilder):
@@ -916,10 +927,42 @@ class MujocoBuilder(MultiSimBuilder):
         assert (
             parent_body_spec is not None
         ), f"Parent body {parent_body_name} not found."
+        if geom_props["type"] == mujoco.mjtGeom.mjGEOM_MESH and not self._parse_geom(
+            geom_props=geom_props
+        ):
+            return
         geom_spec = parent_body_spec.add_geom(**geom_props)
+        if geom_spec.type == mujoco.mjtGeom.mjGEOM_BOX and geom_spec.size[2] == 0:
+            geom_spec.type = mujoco.mjtGeom.mjGEOM_PLANE
+            geom_spec.size = [0, 0, 0.05]
         assert (
             geom_spec is not None
         ), f"Failed to add geom {id(shape)} to body {parent_body_name}."
+
+    def _parse_geom(self, geom_props: Dict[str, Any]) -> bool:
+        """
+        Parses the geometry properties for a mesh geom. Adds the mesh to the spec if it doesn't exist.
+
+        :param geom_props: The geometry properties to parse.
+        :return: True if the mesh was parsed successfully, False otherwise.
+        """
+        mesh_entity = geom_props.pop("mesh")
+        mesh_file_path = mesh_entity.filename
+        mesh_ext = os.path.splitext(mesh_file_path)[1].lower()
+        if mesh_ext == ".dae":
+            print(f"Cannot use .dae files in Mujoco. Skipping mesh {mesh_file_path}.")
+            return False
+        mesh_name = os.path.splitext(os.path.basename(mesh_file_path))[0]
+        if mesh_name not in [mesh.name for mesh in self.spec.meshes]:
+            mesh = self.spec.add_mesh(name=mesh_name)
+            mesh.file = mesh_file_path
+            mesh.scale[:] = (
+                mesh_entity.scale.x,
+                mesh_entity.scale.y,
+                mesh_entity.scale.z,
+            )
+        geom_props["meshname"] = mesh_name
+        return True
 
     def _build_connection(self, connection: Connection):
         if isinstance(connection, FixedConnection):
@@ -938,6 +981,34 @@ class MujocoBuilder(MultiSimBuilder):
         assert (
             joint_spec is not None
         ), f"Failed to add joint {joint_name} to body {child_body_name}."
+
+    def _build_actuator(self, actuator: Actuator):
+        actuator_props = MujocoActuatorConverter.convert(actuator)
+        assert (
+            actuator_props is not None
+        ), f"Failed to convert actuator {actuator.name.name}."
+        dof_names = actuator_props.pop("dof_names")
+        assert len(dof_names) == 1, "Actuator must be associated with exactly one DOF."
+        dof_name = dof_names[0]
+        connection = next(
+            (
+                conn
+                for conn in actuator._world.connections
+                if dof_name in [dof.name.name for dof in conn.dofs]
+            ),
+            None,
+        )
+        assert connection is not None, f"Connection for DOF {dof_name} not found."
+        connection_name = connection.name.name
+        joint_spec = self._find_entity(
+            entity_type=mujoco.mjtObj.mjOBJ_JOINT, entity_name=connection_name
+        )
+        assert joint_spec is not None, f"Joint {connection_name} not found."
+        actuator_props["target"] = joint_spec.name
+        actuator_props["trntype"] = mujoco.mjtTrn.mjTRN_JOINT
+        actuator_name = actuator.name.name
+        actuator_spec = self.spec.add_actuator(**actuator_props)
+        assert actuator_spec is not None, f"Failed to add actuator {actuator_name}."
 
     def _build_mujoco_body(self, body: Union[Region, Body]):
         """

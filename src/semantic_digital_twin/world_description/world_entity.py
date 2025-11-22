@@ -34,6 +34,7 @@ from typing_extensions import List, Optional, TYPE_CHECKING, Tuple
 from typing_extensions import Set
 
 from .geometry import TriangleMesh
+from .inertial_properties import Inertial
 from .shape_collection import ShapeCollection, BoundingBoxCollection
 from ..adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
@@ -230,6 +231,11 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
     index: Optional[int] = field(default=None, init=False)
     """
     The index of the entity in `_world.kinematic_structure`.
+    """
+
+    inertial: Optional[Inertial] = field(default_factory=Inertial)
+    """
+    Inertia properties of the body.
     """
 
     def __post_init__(self):

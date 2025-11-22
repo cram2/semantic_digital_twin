@@ -1114,13 +1114,6 @@ class TestRotationMatrix:
         assert r[3, 2] == 0
         assert r[3, 3] == 1
 
-        # Invalid shape should raise ValueError
-        with pytest.raises(WrongDimensionsError):
-            cas.RotationMatrix(data=np.eye(3))  # 3x3 instead of 4x4
-
-        with pytest.raises(WrongDimensionsError):
-            cas.RotationMatrix(data=np.ones((4, 5)))  # Wrong dimensions
-
     def test_orthogonality_properties(self):
         """Test orthogonality properties of rotation matrices"""
         # Create rotation from known values

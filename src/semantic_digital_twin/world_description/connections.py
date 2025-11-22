@@ -16,6 +16,7 @@ from ..adapters.world_entity_kwargs_tracker import (
 from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.types import NpMatrix4x4
 from ..spatial_types.derivatives import DerivativeMap
+from .connection_properties import JointDynamics
 
 if TYPE_CHECKING:
     from ..world import World
@@ -142,6 +143,11 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
     dof_name: PrefixedName = field(kw_only=True)
     """
     Name of a Degree of freedom to control movement along the axis.
+    """
+
+    dynamics: JointDynamics = field(default_factory=JointDynamics)
+    """
+    Dynamic properties of the joint.
     """
 
     def to_json(self) -> Dict[str, Any]:
