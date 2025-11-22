@@ -22,7 +22,7 @@ pathlib
 probabilistic_model
 python-fcl
 manifold3d
-krrood==1.1.3
+krrood>=2.0.0
 rustworkx_utils
 polytope
 ortools

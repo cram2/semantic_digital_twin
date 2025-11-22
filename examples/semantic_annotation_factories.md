@@ -26,7 +26,7 @@ Used Concepts:
 ## Create a drawer with a handle
 
 ```{code-cell} ipython3
-from krrood.entity_query_language.entity import entity, an, let, symbolic_mode
+from krrood.entity_query_language.entity import entity, an, let
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import TransformationMatrix
@@ -66,8 +66,8 @@ rt.scene.show("jupyter")
 You can query for components of the created furniture using EQL. For example, get all handles:
 
 ```{code-cell} ipython3
-with symbolic_mode():
-    handles = an(entity(let(Handle, world.semantic_annotations)))
+
+handles = an(entity(let(Handle, world.semantic_annotations)))
 print(*handles.evaluate(), sep="\n")
 ```
 
@@ -92,17 +92,15 @@ rt.scene.show("jupyter")
 With two handles in the world, the simple handle query yields multiple results:
 
 ```{code-cell} ipython3
-with symbolic_mode():
-    handles = an(entity(let(Handle, world.semantic_annotations)))
+handles = an(entity(let(Handle, world.semantic_annotations)))
 print(*handles.evaluate(), sep="\n")
 ```
 
 We can refine the query to get only the handle that belongs to a drawer:
 
 ```{code-cell} ipython3
-with symbolic_mode():
-    drawer = let(Drawer, world.semantic_annotations)
-    handle = let(Handle, world.semantic_annotations)
-    result = an(entity(handle, drawer.handle == handle))
+drawer = let(Drawer, world.semantic_annotations)
+handle = let(Handle, world.semantic_annotations)
+result = an(entity(handle, drawer.handle == handle))
 print(*result.evaluate(), sep="\n")
 ```
