@@ -184,8 +184,15 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         state = data.get("state", {})
+
+        # Support both legacy top-level fields and the nested 'state' structure
+        prefixed_names_data = data.get(
+            "prefixed_names", state.get("prefixed_names", [])
+        )
+        states_data = state.get("states", data.get("states", []))
+
         return cls(
-            modifications=[from_json(data["modifications"], **kwargs)],
-            prefixed_names=[from_json(data["prefixed_names"], **kwargs)],
-            states=state.get("states", []),
+            modifications=from_json(data["modifications"], **kwargs),
+            prefixed_names=from_json(prefixed_names_data, **kwargs),
+            states=from_json(states_data, **kwargs),
         )
