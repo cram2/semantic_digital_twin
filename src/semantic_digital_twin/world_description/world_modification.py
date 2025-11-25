@@ -98,7 +98,7 @@ class AddKinematicStructureEntityModification(WorldModelModification):
         world.add_kinematic_structure_entity(self.kinematic_structure_entity)
 
     def to_json(self):
-        return {**super().to_json(), "body": to_json(self.kinematic_structure_entity)}
+        return {**super().to_json(), "body": self.kinematic_structure_entity.to_json()}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
@@ -132,7 +132,7 @@ class RemoveBodyModification(WorldModelModification):
         )
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "body_name": to_json(self.body_name)}
+        return {**super().to_json(), "body_name": self.body_name.to_json()}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
@@ -160,7 +160,7 @@ class AddConnectionModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "connection": to_json(self.connection),
+            "connection": self.connection.to_json(),
         }
 
     @classmethod
@@ -195,7 +195,7 @@ class RemoveConnectionModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "connection_name": to_json(self.connection_name),
+            "connection_name": self.connection_name.to_json(),
         }
 
     @classmethod
@@ -226,7 +226,7 @@ class AddDegreeOfFreedomModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "dof": to_json(self.dof),
+            "dof": self.dof.to_json(),
         }
 
     @classmethod

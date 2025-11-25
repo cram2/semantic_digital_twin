@@ -25,18 +25,14 @@ class PrefixedName(Symbol, SubclassJSONSerializer):
         return self.prefix == other.prefix and self.name == other.name
 
     def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "name": to_json(self.name),
-            "prefix": to_json(self.prefix),
-        }
+        # Emit primitive values directly to avoid double-encoding strings like "\"body\""
+        # and to keep Optional[str] as None instead of the string "null".
+        return {**super().to_json(), "name": self.name, "prefix": self.prefix}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(
-            name=from_json(data["name"], **kwargs),
-            prefix=from_json(data["prefix"], **kwargs),
-        )
+        # Values are primitives; let the helper handle containers if ever passed in.
+        return cls(name=from_json(data["name"], **kwargs), prefix=from_json(data["prefix"], **kwargs))
 
     def __lt__(self, other):
         return str(self) < str(other)

@@ -65,9 +65,8 @@ class ActiveConnection(Connection):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["frozen_for_collision_avoidance"] = to_json(
-            self.frozen_for_collision_avoidance
-        )
+        # Emit primitive
+        result["frozen_for_collision_avoidance"] = self.frozen_for_collision_avoidance
         return result
 
     @classmethod
@@ -151,10 +150,10 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["axis"] = to_json(self.axis.to_np().tolist())
-        result["multiplier"] = to_json(self.multiplier)
-        result["offset"] = to_json(self.offset)
-        result["dof_name"] = to_json(self.dof_name.to_json())
+        result["axis"] = self.axis.to_np().tolist()
+        result["multiplier"] = self.multiplier
+        result["offset"] = self.offset
+        result["dof_name"] = self.dof_name.to_json()
         return result
 
     @classmethod
@@ -410,13 +409,13 @@ class Connection6DoF(Connection):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["x_name"] = to_json(self.x_name)
-        result["y_name"] = to_json(self.y_name)
-        result["z_name"] = to_json(self.z_name)
-        result["qx_name"] = to_json(self.qx_name)
-        result["qy_name"] = to_json(self.qy_name)
-        result["qz_name"] = to_json(self.qz_name)
-        result["qw_name"] = to_json(self.qw_name)
+        result["x_name"] = self.x_name.to_json()
+        result["y_name"] = self.y_name.to_json()
+        result["z_name"] = self.z_name.to_json()
+        result["qx_name"] = self.qx_name.to_json()
+        result["qy_name"] = self.qy_name.to_json()
+        result["qz_name"] = self.qz_name.to_json()
+        result["qw_name"] = self.qw_name.to_json()
         return result
 
     @classmethod
@@ -642,13 +641,13 @@ class OmniDrive(ActiveConnection, HasUpdateState):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["x_name"] = to_json(self.x_name)
-        result["y_name"] = to_json(self.y_name)
-        result["roll_name"] = to_json(self.roll_name)
-        result["pitch_name"] = to_json(self.pitch_name)
-        result["yaw_name"] = to_json(self.yaw_name)
-        result["x_velocity_name"] = to_json(self.x_velocity_name)
-        result["y_velocity_name"] = to_json(self.y_velocity_name)
+        result["x_name"] = self.x_name.to_json()
+        result["y_name"] = self.y_name.to_json()
+        result["roll_name"] = self.roll_name.to_json()
+        result["pitch_name"] = self.pitch_name.to_json()
+        result["yaw_name"] = self.yaw_name.to_json()
+        result["x_velocity_name"] = self.x_velocity_name.to_json()
+        result["y_velocity_name"] = self.y_velocity_name.to_json()
         return result
 
     @classmethod

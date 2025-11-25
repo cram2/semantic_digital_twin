@@ -34,11 +34,12 @@ class MetaData(SubclassJSONSerializer):
 
     @lru_cache(maxsize=None)
     def to_json(self) -> Dict[str, Any]:
+        # Emit primitives directly to avoid double-encoding into JSON strings
         return {
             **super().to_json(),
-            "node_name": to_json(self.node_name),
-            "process_id": to_json(self.process_id),
-            "object_id": to_json(self.object_id),
+            "node_name": self.node_name,
+            "process_id": self.process_id,
+            "object_id": self.object_id,
         }
 
     @classmethod
@@ -62,10 +63,8 @@ class Message(SubclassJSONSerializer, ABC):
     """
 
     def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "meta_data": to_json(self.meta_data.to_json()),
-        }
+        # Keep nested objects as dicts
+        return {**super().to_json(), "meta_data": self.meta_data.to_json()}
 
 
 @dataclass
@@ -85,10 +84,11 @@ class WorldStateUpdate(Message):
     """
 
     def to_json(self) -> Dict[str, Any]:
+        # Serialize lists as JSON-compatible structures (not strings)
         return {
             **super().to_json(),
-            "prefixed_names": to_json(self.prefixed_names),
-            "states": to_json(list(self.states)),
+            "prefixed_names": [p.to_json() for p in self.prefixed_names],
+            "states": list(self.states),
         }
 
     @classmethod
@@ -112,10 +112,7 @@ class ModificationBlock(Message):
     """
 
     def to_json(self) -> Dict[str, Any]:
-        return {
-            **super().to_json(),
-            "modifications": to_json(self.modifications),
-        }
+        return {**super().to_json(), "modifications": self.modifications.to_json()}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
@@ -174,10 +171,10 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "modifications": to_json(self.modifications),
+            "modifications": [m.to_json() for m in self.modifications],
             "state": {
-                "prefixed_names": to_json(self.prefixed_names),
-                "states": to_json(list(self.states)),
+                "prefixed_names": [p.to_json() for p in self.prefixed_names],
+                "states": list(self.states),
             },
         }
 

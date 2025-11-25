@@ -150,8 +150,8 @@ class Shape(ABC, SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "origin": to_json(self.origin),
-            "color": to_json(self.color),
+            "origin": self.origin.to_json(),
+            "color": self.color.to_json(),
         }
 
     def __eq__(self, other: Shape) -> bool:
