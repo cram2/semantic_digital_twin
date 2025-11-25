@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 
 import numpy as np
+from krrood.adapters.json_serializer import to_json, from_json
 from typing_extensions import List, TYPE_CHECKING, Union, Optional, Dict, Any, Self
 
 from .degree_of_freedom import DegreeOfFreedom
@@ -64,26 +65,30 @@ class ActiveConnection(Connection):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["frozen_for_collision_avoidance"] = self.frozen_for_collision_avoidance
+        result["frozen_for_collision_avoidance"] = to_json(
+            self.frozen_for_collision_avoidance
+        )
         return result
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         tracker = KinematicStructureEntityKwargsTracker.from_kwargs(kwargs)
         parent = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["parent_name"])
+            name=from_json(data["parent_name"], **kwargs)
         )
         child = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["child_name"])
+            name=from_json(data["child_name"], **kwargs)
         )
         return cls(
-            name=PrefixedName.from_json(data["name"]),
+            name=from_json(data["name"], **kwargs),
             parent=parent,
             child=child,
             parent_T_connection_expression=cas.TransformationMatrix.from_json(
-                data["parent_T_connection_expression"], **kwargs
+                from_json(data["parent_T_connection_expression"], **kwargs), **kwargs
             ),
-            frozen_for_collision_avoidance=data["frozen_for_collision_avoidance"],
+            frozen_for_collision_avoidance=from_json(
+                data["frozen_for_collision_avoidance"], **kwargs
+            ),
             **kwargs,
         )
 
@@ -146,10 +151,10 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["axis"] = self.axis.to_np().tolist()
-        result["multiplier"] = self.multiplier
-        result["offset"] = self.offset
-        result["dof_name"] = self.dof_name.to_json()
+        result["axis"] = to_json(self.axis.to_np().tolist())
+        result["multiplier"] = to_json(self.multiplier)
+        result["offset"] = to_json(self.offset)
+        result["dof_name"] = to_json(self.dof_name.to_json())
         return result
 
     @classmethod
@@ -161,18 +166,21 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
         child = tracker.get_kinematic_structure_entity(
             name=PrefixedName.from_json(data["child_name"])
         )
+
         return cls(
-            name=PrefixedName.from_json(data["name"]),
+            name=from_json(data["name"], **kwargs),
             parent=parent,
             child=child,
             parent_T_connection_expression=cas.TransformationMatrix.from_json(
                 data["parent_T_connection_expression"], **kwargs
             ),
-            frozen_for_collision_avoidance=data["frozen_for_collision_avoidance"],
-            axis=cas.Vector3.from_iterable(data["axis"]),
-            multiplier=data["multiplier"],
-            offset=data["offset"],
-            dof_name=PrefixedName.from_json(data["dof_name"]),
+            frozen_for_collision_avoidance=from_json(
+                data["frozen_for_collision_avoidance"], **kwargs
+            ),
+            axis=cas.Vector3.from_iterable(from_json(data["axis"])),
+            multiplier=from_json(data["multiplier"], **kwargs),
+            offset=from_json(data["offset"], **kwargs),
+            dof_name=from_json(data["dof_name"], **kwargs),
         )
 
     @classmethod

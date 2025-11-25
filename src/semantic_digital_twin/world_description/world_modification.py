@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from typing_extensions import (
     List,
     Dict,
@@ -136,11 +136,11 @@ class RemoveBodyModification(WorldModelModification):
         )
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "body_name": self.body_name.to_json()}
+        return {**super().to_json(), "body_name": to_json(self.body_name)}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(body_name=PrefixedName.from_json(data["body_name"], **kwargs))
+        return cls(body_name=from_json(data["body_name"], **kwargs))
 
 
 @dataclass

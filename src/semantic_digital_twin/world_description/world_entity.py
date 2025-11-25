@@ -17,6 +17,7 @@ import trimesh
 import trimesh.boolean
 from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
+    JSON_TYPE_NAME,
 )
 from krrood.entity_query_language.predicate import Symbol
 from scipy.stats import geom
@@ -618,7 +619,7 @@ class SemanticAnnotation(WorldEntity, SubclassJSONSerializer):
         for k, v in semantic_annotation_fields.items():
             if k not in data.keys():
                 continue
-            field_type = type_string_to_type(data[k]["type"])
+            field_type = type_string_to_type(data[k][JSON_TYPE_NAME])
             if issubclass(field_type, SubclassJSONSerializer):
                 init_args[k] = field_type.from_json(data[k], **kwargs)
 

@@ -9,7 +9,11 @@ from functools import cached_property
 import numpy as np
 import trimesh
 import trimesh.exchange.stl
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import (
+    SubclassJSONSerializer,
+    JSON_TYPE_NAME,
+    from_json,
+)
 from random_events.interval import SimpleInterval, Bound, closed
 from random_events.product_algebra import SimpleEvent
 from typing_extensions import Optional, List, Dict, Any, Self, Tuple
@@ -234,7 +238,7 @@ class FileMesh(Mesh):
             "mesh": self.mesh.to_dict(),
             "scale": self.scale.to_json(),
         }
-        json["type"] = json["type"].replace("FileMesh", "TriangleMesh")
+        json[JSON_TYPE_NAME] = json[JSON_TYPE_NAME].replace("FileMesh", "TriangleMesh")
         return json
 
     @classmethod
@@ -268,8 +272,8 @@ class TriangleMesh(Mesh):
         mesh = trimesh.Trimesh(
             vertices=data["mesh"]["vertices"], faces=data["mesh"]["faces"]
         )
-        origin = TransformationMatrix.from_json(data["origin"], **kwargs)
-        scale = Scale.from_json(data["scale"], **kwargs)
+        origin = from_json(data["origin"], **kwargs)
+        scale = from_json(data["scale"], **kwargs)
         return cls(mesh=mesh, origin=origin, scale=scale)
 
 

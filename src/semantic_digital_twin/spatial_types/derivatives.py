@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing_extensions import Generic, TypeVar, List, Optional, Dict, Any
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 
 T = TypeVar("T")
 
@@ -88,11 +88,11 @@ class DerivativeMap(Generic[T], SubclassJSONSerializer):
         self.data[Derivatives.jerk] = value
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "data": self.data}
+        return {**super().to_json(), "data": to_json(self.data)}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> DerivativeMap[T]:
-        return cls(data=data["data"])
+        return cls(from_json(data=data["data"], **kwargs))
 
     def __mul__(self, other: float) -> DerivativeMap[T]:
         result = DerivativeMap()
