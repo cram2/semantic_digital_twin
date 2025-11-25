@@ -98,15 +98,11 @@ class AddKinematicStructureEntityModification(WorldModelModification):
         world.add_kinematic_structure_entity(self.kinematic_structure_entity)
 
     def to_json(self):
-        return {**super().to_json(), "body": self.kinematic_structure_entity.to_json()}
+        return {**super().to_json(), "body": to_json(self.kinematic_structure_entity)}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(
-            kinematic_structure_entity=KinematicStructureEntity.from_json(
-                data["body"], **kwargs
-            )
-        )
+        return cls(kinematic_structure_entity=from_json(data["body"], **kwargs))
 
     def __eq__(self, other: Any) -> bool:
         return (
@@ -164,12 +160,12 @@ class AddConnectionModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "connection": self.connection.to_json(),
+            "connection": to_json(self.connection),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(connection=Connection.from_json(data["connection"], **kwargs))
+        return cls(connection=from_json(data["connection"], **kwargs))
 
     def __eq__(self, other):
         return (
@@ -199,7 +195,7 @@ class RemoveConnectionModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "connection_name": self.connection_name.to_json(),
+            "connection_name": to_json(self.connection_name),
         }
 
     @classmethod
@@ -230,12 +226,12 @@ class AddDegreeOfFreedomModification(WorldModelModification):
     def to_json(self):
         return {
             **super().to_json(),
-            "dof": self.dof.to_json(),
+            "dof": to_json(self.dof),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(dof=DegreeOfFreedom.from_json(data["dof"], **kwargs))
+        return cls(dof=from_json(data["dof"], **kwargs))
 
     def __eq__(self, other):
         return self.dof.name == other.dof.name

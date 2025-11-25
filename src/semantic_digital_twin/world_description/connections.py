@@ -171,7 +171,7 @@ class ActiveConnection1DOF(ActiveConnection, ABC):
             name=from_json(data["name"], **kwargs),
             parent=parent,
             child=child,
-            parent_T_connection_expression=cas.TransformationMatrix.from_json(
+            parent_T_connection_expression=from_json(
                 data["parent_T_connection_expression"], **kwargs
             ),
             frozen_for_collision_avoidance=from_json(
@@ -410,13 +410,13 @@ class Connection6DoF(Connection):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["x_name"] = self.x_name.to_json()
-        result["y_name"] = self.y_name.to_json()
-        result["z_name"] = self.z_name.to_json()
-        result["qx_name"] = self.qx_name.to_json()
-        result["qy_name"] = self.qy_name.to_json()
-        result["qz_name"] = self.qz_name.to_json()
-        result["qw_name"] = self.qw_name.to_json()
+        result["x_name"] = to_json(self.x_name)
+        result["y_name"] = to_json(self.y_name)
+        result["z_name"] = to_json(self.z_name)
+        result["qx_name"] = to_json(self.qx_name)
+        result["qy_name"] = to_json(self.qy_name)
+        result["qz_name"] = to_json(self.qz_name)
+        result["qw_name"] = to_json(self.qw_name)
         return result
 
     @classmethod
@@ -642,38 +642,38 @@ class OmniDrive(ActiveConnection, HasUpdateState):
 
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
-        result["x_name"] = self.x_name.to_json()
-        result["y_name"] = self.y_name.to_json()
-        result["roll_name"] = self.roll_name.to_json()
-        result["pitch_name"] = self.pitch_name.to_json()
-        result["yaw_name"] = self.yaw_name.to_json()
-        result["x_velocity_name"] = self.x_velocity_name.to_json()
-        result["y_velocity_name"] = self.y_velocity_name.to_json()
+        result["x_name"] = to_json(self.x_name)
+        result["y_name"] = to_json(self.y_name)
+        result["roll_name"] = to_json(self.roll_name)
+        result["pitch_name"] = to_json(self.pitch_name)
+        result["yaw_name"] = to_json(self.yaw_name)
+        result["x_velocity_name"] = to_json(self.x_velocity_name)
+        result["y_velocity_name"] = to_json(self.y_velocity_name)
         return result
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         tracker = KinematicStructureEntityKwargsTracker.from_kwargs(kwargs)
         parent = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["parent_name"])
+            name=from_json(data["parent_name"], **kwargs)
         )
         child = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["child_name"])
+            name=from_json(data["child_name"], **kwargs)
         )
         return cls(
-            name=PrefixedName.from_json(data["name"], **kwargs),
+            name=from_json(data["name"], **kwargs),
             parent=parent,
             child=child,
             parent_T_connection_expression=cas.TransformationMatrix.from_json(
                 data["parent_T_connection_expression"], **kwargs
             ),
-            x_name=PrefixedName.from_json(data["x_name"], **kwargs),
-            y_name=PrefixedName.from_json(data["y_name"], **kwargs),
-            roll_name=PrefixedName.from_json(data["roll_name"], **kwargs),
-            pitch_name=PrefixedName.from_json(data["pitch_name"], **kwargs),
-            yaw_name=PrefixedName.from_json(data["yaw_name"], **kwargs),
-            x_velocity_name=PrefixedName.from_json(data["x_velocity_name"], **kwargs),
-            y_velocity_name=PrefixedName.from_json(data["y_velocity_name"], **kwargs),
+            x_name=from_json(data["x_name"], **kwargs),
+            y_name=from_json(data["y_name"], **kwargs),
+            roll_name=from_json(data["roll_name"], **kwargs),
+            pitch_name=from_json(data["pitch_name"], **kwargs),
+            yaw_name=from_json(data["yaw_name"], **kwargs),
+            x_velocity_name=from_json(data["x_velocity_name"], **kwargs),
+            y_velocity_name=from_json(data["y_velocity_name"], **kwargs),
         )
 
     @property

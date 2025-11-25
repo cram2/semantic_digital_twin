@@ -13,6 +13,7 @@ from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
     JSON_TYPE_NAME,
     from_json,
+    to_json,
 )
 from random_events.interval import SimpleInterval, Bound, closed
 from random_events.product_algebra import SimpleEvent
@@ -149,8 +150,8 @@ class Shape(ABC, SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "origin": self.origin.to_json(),
-            "color": self.color.to_json(),
+            "origin": to_json(self.origin),
+            "color": to_json(self.color),
         }
 
     def __eq__(self, other: Shape) -> bool:
@@ -418,9 +419,9 @@ class Box(Shape):
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
-            scale=Scale.from_json(data["scale"], **kwargs),
-            origin=TransformationMatrix.from_json(data["origin"], **kwargs),
-            color=Color.from_json(data["color"], **kwargs),
+            scale=from_json(data["scale"], **kwargs),
+            origin=from_json(data["origin"], **kwargs),
+            color=from_json(data["color"], **kwargs),
         )
 
 

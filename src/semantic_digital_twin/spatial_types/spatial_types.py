@@ -13,7 +13,7 @@ from enum import IntEnum
 
 import casadi as ca
 import numpy as np
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json
 from scipy import sparse as sp
 from typing_extensions import (
     Optional,
@@ -1951,9 +1951,9 @@ class TransformationMatrix(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame"] = to_json(self.reference_frame.name)
         if self.child_frame is not None:
-            result["child_frame"] = self.child_frame.name.to_json()
+            result["child_frame"] = to_json(self.child_frame.name)
         result["position"] = self.to_position().to_np().tolist()
         result["rotation"] = self.to_quaternion().to_np().tolist()
         return result
@@ -2312,7 +2312,7 @@ class RotationMatrix(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame"] = to_json(self.reference_frame.name)
         result["quaternion"] = self.to_quaternion().to_np().tolist()
         return result
 

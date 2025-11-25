@@ -114,16 +114,14 @@ class ModificationBlock(Message):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "modifications": self.modifications.to_json(),
+            "modifications": to_json(self.modifications),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
-            meta_data=MetaData.from_json(data["meta_data"], **kwargs),
-            modifications=WorldModelModificationBlock.from_json(
-                data["modifications"], **kwargs
-            ),
+            meta_data=from_json(data["meta_data"], **kwargs),
+            modifications=from_json(data["modifications"], **kwargs),
         )
 
 
@@ -176,10 +174,10 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "modifications": [m.to_json() for m in self.modifications],
+            "modifications": to_json(self.modifications),
             "state": {
-                "prefixed_names": [n.to_json() for n in self.prefixed_names],
-                "states": list(self.states),
+                "prefixed_names": to_json(self.prefixed_names),
+                "states": to_json(list(self.states)),
             },
         }
 
@@ -187,13 +185,7 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         state = data.get("state", {})
         return cls(
-            modifications=[
-                WorldModelModificationBlock.from_json(m, **kwargs)
-                for m in data.get("modifications", [])
-            ],
-            prefixed_names=[
-                PrefixedName.from_json(n, **kwargs)
-                for n in state.get("prefixed_names", [])
-            ],
+            modifications=[from_json(data["modifications"], **kwargs)],
+            prefixed_names=[from_json(data["prefixed_names"], **kwargs)],
             states=state.get("states", []),
         )
