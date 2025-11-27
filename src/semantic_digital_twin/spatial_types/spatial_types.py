@@ -731,7 +731,7 @@ class MatrixOperationsMixin:
 
 
 @dataclass(eq=False)
-class FloatVariable(BasicOperatorMixin, SymbolicType):
+class FloatVariable(SymbolicType, BasicOperatorMixin):
     """
     A symbolic expression representing a single float variable.
     No matrix and no numbers.
@@ -772,7 +772,7 @@ class FloatVariable(BasicOperatorMixin, SymbolicType):
 
 @dataclass(eq=False)
 class Expression(
-    BasicOperatorMixin, VectorOperationsMixin, MatrixOperationsMixin, SymbolicType
+    SymbolicType, BasicOperatorMixin, VectorOperationsMixin, MatrixOperationsMixin
 ):
     """
     Represents symbolic expressions with rich mathematical capabilities, including matrix
@@ -1889,7 +1889,7 @@ class ReferenceFrameMixin:
 
 @dataclass(eq=False)
 class TransformationMatrix(
-    ReferenceFrameMixin, MatrixOperationsMixin, SymbolicType, SubclassJSONSerializer
+    SymbolicType, ReferenceFrameMixin, MatrixOperationsMixin, SubclassJSONSerializer
 ):
     """
     Represents a 4x4 transformation matrix used in kinematics and transformations.
@@ -2254,7 +2254,7 @@ class TransformationMatrix(
 
 @dataclass(eq=False)
 class RotationMatrix(
-    ReferenceFrameMixin, MatrixOperationsMixin, SymbolicType, SubclassJSONSerializer
+    SymbolicType, ReferenceFrameMixin, MatrixOperationsMixin, SubclassJSONSerializer
 ):
     """
     Class to represent a 4x4 symbolic rotation matrix tied to kinematic references.
@@ -2586,7 +2586,7 @@ class RotationMatrix(
 
 @dataclass(eq=False)
 class Point3(
-    ReferenceFrameMixin, VectorOperationsMixin, SymbolicType, SubclassJSONSerializer
+    SymbolicType, ReferenceFrameMixin, VectorOperationsMixin, SubclassJSONSerializer
 ):
     """
     Represents a 3D point with reference frame handling.
@@ -2806,7 +2806,7 @@ class Point3(
 
 @dataclass(eq=False)
 class Vector3(
-    ReferenceFrameMixin, VectorOperationsMixin, SymbolicType, SubclassJSONSerializer
+    SymbolicType, ReferenceFrameMixin, VectorOperationsMixin, SubclassJSONSerializer
 ):
     """
     Representation of a 3D vector with reference frame support for homogenous transformations.
@@ -3124,7 +3124,7 @@ class Vector3(
 
 
 @dataclass(eq=False)
-class Quaternion(ReferenceFrameMixin, SymbolicType, SubclassJSONSerializer):
+class Quaternion(SymbolicType, ReferenceFrameMixin, SubclassJSONSerializer):
     """
     Represents a quaternion, which is a mathematical entity used to encode
     rotations in three-dimensional space.
