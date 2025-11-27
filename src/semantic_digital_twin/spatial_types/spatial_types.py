@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import builtins
 import copy
 import functools
-import math
 import operator
-import sys
 from collections import Counter
 from copy import copy, deepcopy
 from dataclasses import dataclass, field, InitVar
 from enum import IntEnum
 
+import builtins
 import casadi as ca
+import math
 import numpy as np
+import sys
 from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.entity_query_language.predicate import Symbol
 from scipy import sparse as sp
 from typing_extensions import (
     Optional,
@@ -355,7 +356,7 @@ def _operation_type_error(arg1: object, operation: str, arg2: object) -> TypeErr
 
 
 @dataclass(eq=False)
-class SymbolicType:
+class SymbolicType(Symbol):
     """
     A wrapper around CasADi's ca.SX, with better usability
     """
@@ -1083,6 +1084,9 @@ class Expression(
         """
         assert self.shape[0] == self.shape[1]
         return Expression(ca.inv(self.casadi_sx))
+
+    def is_scalar(self) -> bool:
+        return self.shape == (1, 1)
 
     def scale(self, a: ScalarData) -> Expression:
         return self.safe_division(self.norm()) * a
