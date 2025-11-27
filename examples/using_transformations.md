@@ -63,9 +63,6 @@ camera_body = Body(
     collision=ShapeCollection([camera_shape]),
 )
 
-# Connect base to the world root, and camera to the base.
-world_C_base = Connection6DoF.create_with_dofs(parent=root, child=base_body, world=world)
-base_C_camera = Connection6DoF.create_with_dofs(parent=base_body, child=camera_body, world=world)
 
 # Place the base: put it slightly above the ground so the top sits at z≈0.05
 world_T_base = TransformationMatrix.from_xyz_rpy(z=0.025, reference_frame=root)
@@ -79,6 +76,10 @@ base_T_camera = TransformationMatrix.from_xyz_rpy(
 )
 
 with world.modify_world():
+    # Connect base to the world root, and camera to the base.
+    world_C_base = Connection6DoF.create_with_dofs(parent=root, child=base_body, world=world)
+    base_C_camera = Connection6DoF.create_with_dofs(parent=base_body, child=camera_body, world=world)
+
     world.add_connection(world_C_base)
     world.add_connection(base_C_camera)
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Dict
+from uuid import UUID
 
 from krrood.adapters.json_serializer import JSONSerializationError
 from typing_extensions import (
@@ -11,6 +13,7 @@ from typing_extensions import (
     Callable,
     Tuple,
     Union,
+    Any,
 )
 
 from .datastructures.prefixed_name import PrefixedName
@@ -24,11 +27,60 @@ if TYPE_CHECKING:
     )
     from .spatial_types.spatial_types import FloatVariable, SymbolicType
 
+@dataclass
+class UnknownWorldModification(Exception):
+    """
+    Raised when an unknown world modification is attempted.
+    """
+
+    call: Callable
+    kwargs: Dict[str, Any]
+
+    def __post_init__(self):
+        super().__init__(
+            " Make sure that world modifications are atomic and that every atomic modification is "
+            "represented by exactly one subclass of WorldModelModification."
+            "This module might be incomplete, you can help by expanding it."
+        )
+
 
 class LogicalError(Exception):
     """
     An error that happens due to mistake in the logical operation or usage of the API during runtime.
     """
+
+
+class DofNotInWorldStateError(KeyError):
+    """
+    An exception raised when a degree of freedom is not found in the world's state dictionary.
+    """
+    dof_id: UUID
+
+    def __init__(self, dof_id: UUID):
+        self.dof_id = dof_id
+        super().__init__(f"Degree of freedom {dof_id} not found in world state.")
+
+class IncorrectWorldStateValueShapeError(ValueError):
+    """
+    An exception raised when the shape of a value in the world's state dictionary is incorrect.
+    """
+    dof_id: UUID
+
+    def __init__(self, dof_id: UUID):
+        self.dof_id = dof_id
+        super().__init__(f"Value for '{dof_id}' must be length-4 array (pos, vel, acc, jerk).")
+
+class MismatchingCommandLengthError(ValueError):
+    """
+    An exception raised when the length of a command does not match the expected length.
+    """
+    expected_length: int
+    actual_length: int
+
+    def __init__(self, expected_length: int, actual_length: int):
+        self.expected_length = expected_length
+        self.actual_length = actual_length
+        super().__init__(f"Commands length {self.actual_length} does not match number of free variables {self.expected_length}.")
 
 
 class UsageError(LogicalError):
@@ -165,10 +217,13 @@ class ParsingError(Exception):
 
 @dataclass
 class WorldEntityNotFoundError(UsageError):
-    name: PrefixedName
+    name_or_hash: Union[PrefixedName, int]
 
     def __post_init__(self):
-        msg = f"WorldEntity with name {self.name} not found"
+        if isinstance(self.name_or_hash, PrefixedName):
+            msg = f"WorldEntity with name {self.name_or_hash} not found"
+        else:
+            msg = f"WorldEntity with hash {self.name_or_hash} not found"
         super().__init__(msg)
 
 
@@ -198,10 +253,10 @@ class SpatialTypeNotJsonSerializable(NotJsonSerializable):
 
 @dataclass
 class KinematicStructureEntityNotInKwargs(JSONSerializationError):
-    kinematic_structure_entity_name: PrefixedName
+    kinematic_structure_entity_id: UUID
 
     def __post_init__(self):
         super().__init__(
-            f"Kinematic structure entity '{self.kinematic_structure_entity_name}' is not in the kwargs of the "
+            f"Kinematic structure entity '{self.kinematic_structure_entity_id}' is not in the kwargs of the "
             f"method that created it."
         )

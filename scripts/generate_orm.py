@@ -8,26 +8,27 @@
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import is_dataclass
 
-import trimesh
+import sqlalchemy
 from krrood.class_diagrams import ClassDiagram
-from krrood.ormatic.dao import AlternativeMapping
 from krrood.ormatic.ormatic import ORMatic
 from krrood.ormatic.utils import classes_of_module
 from krrood.utils import recursive_subclasses
 
+import semantic_digital_twin.adapters.procthor.procthor_semantic_annotations
 import semantic_digital_twin.orm.model
 import semantic_digital_twin.reasoning.predicates
 import semantic_digital_twin.robots.abstract_robot
 import semantic_digital_twin.semantic_annotations.semantic_annotations
 import semantic_digital_twin.world  # ensure the module attribute exists on the package
-import semantic_digital_twin.adapters.procthor.procthor_semantic_annotations
 import semantic_digital_twin.world_description.degree_of_freedom
 import semantic_digital_twin.world_description.geometry
 import semantic_digital_twin.world_description.shape_collection
 import semantic_digital_twin.world_description.world_entity
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.orm.model import *  # type: ignore
 from semantic_digital_twin.reasoning.predicates import ContainsType
 from semantic_digital_twin.semantic_annotations.mixins import HasBody
 from semantic_digital_twin.spatial_computations.forward_kinematics import (
@@ -42,7 +43,6 @@ from semantic_digital_twin.world_description.connections import (
     FixedConnection,
     HasUpdateState,
 )
-from semantic_digital_twin.orm.model import *  # type: ignore
 
 all_classes = set(
     classes_of_module(semantic_digital_twin.world_description.world_entity)
@@ -75,6 +75,8 @@ all_classes |= set(
         semantic_digital_twin.adapters.procthor.procthor_semantic_annotations
     )
 )
+all_classes |= set(classes_of_module(semantic_digital_twin.world_description.world_modification))
+all_classes |= set(classes_of_module(semantic_digital_twin.callbacks.callback))
 
 
 # remove classes that should not be mapped
@@ -110,7 +112,8 @@ def generate_orm():
 
     instance = ORMatic(
         class_dependency_graph=class_diagram,
-        type_mappings={trimesh.Trimesh: semantic_digital_twin.orm.model.TrimeshType},
+        type_mappings={trimesh.Trimesh: semantic_digital_twin.orm.model.TrimeshType,
+                       uuid.UUID: sqlalchemy.UUID},
         alternative_mappings=alternative_mappings,
     )
 

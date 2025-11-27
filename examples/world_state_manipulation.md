@@ -148,7 +148,7 @@ We can close the drawer again as follows:
 ```{code-cell} ipython3
 connection = the(entity(connection := let(type_=PrismaticConnection, domain=world.connections), in_("drawer", connection.child.name.name))).evaluate()
 with world.modify_world():
-    world.state[connection.dof.name] = [0., 0., 0., 0.]
+    world.state[connection.dof.id] = [0., 0., 0., 0.]
 rt = RayTracer(world)
 rt.update_scene()
 rt.scene.show("jupyter")

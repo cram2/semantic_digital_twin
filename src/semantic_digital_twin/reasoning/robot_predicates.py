@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from copy import deepcopy
 from typing import Optional, List
 
 import trimesh.sample
@@ -103,7 +104,7 @@ def blocking(
     )
     with root._world.modify_world():
         for dof, state in result.items():
-            root._world.state[dof.name].position = state
+            root._world.state[dof.id].position = state
 
     robot = the(
         entity(

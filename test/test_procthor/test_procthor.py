@@ -2,10 +2,9 @@ import json
 import os
 import unittest
 from dataclasses import asdict
-from time import sleep
 
 import numpy as np
-from sqlalchemy import create_engine
+from krrood.ormatic.utils import create_engine
 from sqlalchemy.orm import Session
 
 from semantic_digital_twin.adapters.procthor.procthor_parser import (
@@ -260,7 +259,7 @@ class ProcTHORTestCase(unittest.TestCase):
         )
 
         # Create database engine and session
-        engine = create_engine(f"mysql+pymysql://{semantic_digital_twin_database_uri}")
+        engine = create_engine(f"{semantic_digital_twin_database_uri}")
         session = Session(engine)
 
         procthor_object = ProcthorObject(object_dict=objects, session=session)
@@ -285,15 +284,36 @@ class ProcTHORTestCase(unittest.TestCase):
         objects = self.house_json["objects"][0]
 
         semantic_digital_twin_database_uri = os.environ.get(
-            "semantic_digital_twin_DATABASE_URI"
+            "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
         )
 
         # Create database engine and session
-        engine = create_engine(f"mysql+pymysql://{semantic_digital_twin_database_uri}")
+        engine = create_engine(f"{semantic_digital_twin_database_uri}")
         session = Session(engine)
 
         procthor_object = ProcthorObject(object_dict=objects, session=session)
         world = procthor_object.get_world()
+        ...
+
+    @unittest.skip("Requires Database, TBD")
+    def test_duplicate_object(self):
+        semantic_digital_twin_database_uri = os.environ.get(
+            "SEMANTIC_DIGITAL_TWIN_DATABASE_URI"
+        )
+
+        # Create database engine and session
+        engine = create_engine(f"{semantic_digital_twin_database_uri}")
+        session = Session(engine)
+
+        house = self.house_json
+        objects = house["objects"]
+
+        procthor_object = ProcthorObject(object_dict=objects[0], session=session)
+        obj_world = procthor_object.get_world()
+
+        world = ProcTHORParser("test_house", house=self.house_json, session=session).parse()
+
+        world.merge_world(obj_world)
 
         ...
 

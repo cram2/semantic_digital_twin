@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import ClassVar, Optional, Type, List, Dict
+from uuid import UUID
 
 import numpy as np
 import rclpy  # type: ignore
@@ -19,7 +20,6 @@ from sqlalchemy.orm import Session
 from .messages import MetaData, WorldStateUpdate, Message, ModificationBlock, LoadModel
 from ..world_entity_kwargs_tracker import KinematicStructureEntityKwargsTracker
 from ...callbacks.callback import Callback, StateChangeCallback, ModelChangeCallback
-from ...datastructures.prefixed_name import PrefixedName
 from ...orm.ormatic_interface import *
 from ...world import World
 
@@ -204,7 +204,7 @@ class StateSynchronizer(StateChangeCallback, SynchronizerOnCallback):
         :param msg: The message containing the new state information.
         """
         # Parse incoming states: WorldState has 'states' only
-        indices = [self.world.state._index[n] for n in msg.prefixed_names]
+        indices = [self.world.state._index[_id] for _id in msg.ids]
 
         if indices:
             self.world.state.data[0, indices] = np.asarray(msg.states, dtype=float)
@@ -221,22 +221,22 @@ class StateSynchronizer(StateChangeCallback, SynchronizerOnCallback):
             return
 
         msg = WorldStateUpdate(
-            prefixed_names=list(changes.keys()),
+            ids=list(changes.keys()),
             states=list(changes.values()),
             meta_data=self.meta_data,
         )
         self.update_previous_world_state()
         self.publish(msg)
 
-    def compute_state_changes(self) -> Dict[PrefixedName, float]:
+    def compute_state_changes(self) -> Dict[UUID, float]:
         changes = {
-            name: current_state
-            for name, current_state in zip(
+            _id: current_state
+            for _id, current_state in zip(
                 self.world.state.keys(), self.world.state.positions
             )
-            if name not in self.previous_world_state_data
+            if _id not in self.previous_world_state_data
             or not np.allclose(
-                current_state, self.previous_world_state_data[name].position
+                current_state, self.previous_world_state_data[_id].position
             )
         }
         return changes

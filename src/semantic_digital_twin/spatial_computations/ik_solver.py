@@ -160,7 +160,7 @@ class InverseKinematicsSolver:
         :param max_iterations: Maximum number of iterations
         :param translation_velocity: Maximum translation velocity
         :param rotation_velocity: Maximum rotation velocity
-        :return: Dictionary mapping DOF names to their computed positions
+        :return: Dictionary mapping DOFs to their computed positions
         """
         target = root._world.transform(target, root)
         qp_problem = QPProblem(
@@ -176,10 +176,10 @@ class InverseKinematicsSolver:
         # Initialize solver state
         solver_state = SolverState(
             position=np.array(
-                [self.world.state[dof.name].position for dof in qp_problem.active_dofs]
+                [self.world.state[dof.id].position for dof in qp_problem.active_dofs]
             ),
             passive_position=np.array(
-                [self.world.state[dof.name].position for dof in qp_problem.passive_dofs]
+                [self.world.state[dof.id].position for dof in qp_problem.passive_dofs]
             ),
         )
 
@@ -339,10 +339,10 @@ class QPProblem:
             passive_dofs_set.update(connection.passive_dofs)
 
         active_dofs: List[DegreeOfFreedom] = list(
-            sorted(active_dofs_set, key=lambda d: str(d.name))
+            sorted(active_dofs_set, key=lambda d: str(d.id))
         )
         passive_dofs: List[DegreeOfFreedom] = list(
-            sorted(passive_dofs_set, key=lambda d: str(d.name))
+            sorted(passive_dofs_set, key=lambda d: str(d.id))
         )
 
         active_variables = [dof.variables.position for dof in active_dofs]

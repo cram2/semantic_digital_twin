@@ -1,6 +1,6 @@
 import logging
 
-from krrood.entity_query_language.entity import entity, let, in_, inference
+from krrood.entity_query_language.entity import entity, let, in_, an, inference
 from numpy.ma.testutils import (
     assert_equal,
 )  # You could replace this with numpy's regular assert for better compatibility
@@ -77,7 +77,7 @@ def test_semantic_annotation_hash(apartment_world):
     semantic_annotation1 = Handle(body=apartment_world.bodies[0])
     with apartment_world.modify_world():
         apartment_world.add_semantic_annotation(semantic_annotation1)
-    assert hash(semantic_annotation1) == hash((Handle, apartment_world.bodies[0].name))
+    assert hash(semantic_annotation1) == hash((Handle, apartment_world.bodies[0].id))
 
     semantic_annotation2 = Handle(body=apartment_world.bodies[0])
     assert semantic_annotation1 == semantic_annotation2
@@ -134,7 +134,10 @@ def test_aggregate_bodies(kitchen_world):
 
 
 def test_handle_semantic_annotation_eql(apartment_world):
-    body = let(type_=Body, domain=apartment_world.bodies)
+    body = let(
+        type_=Body,
+        domain=apartment_world.bodies
+    )
     query = an(
         entity(inference(Handle)(body=body), in_("handle", body.name.name.lower()))
     )

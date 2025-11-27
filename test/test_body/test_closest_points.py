@@ -7,6 +7,8 @@ from semantic_digital_twin.testing import world_setup_simple
 def test_closest_points(world_setup_simple):
     world, body1, body2, body3, _ = world_setup_simple
 
+    world.get_connection(world.root, body1).origin
+
     world.get_connection(world.root, body1).origin = np.array(
         [[1, 0, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     )

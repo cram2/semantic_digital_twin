@@ -3,7 +3,8 @@ import unittest
 
 import numpy as np
 import sqlalchemy
-from sqlalchemy import create_engine, select
+from krrood.ormatic.utils import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from semantic_digital_twin.adapters.urdf import URDFParser

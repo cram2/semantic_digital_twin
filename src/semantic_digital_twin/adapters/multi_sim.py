@@ -25,7 +25,6 @@ from ..callbacks.callback import ModelChangeCallback
 from ..datastructures.prefixed_name import PrefixedName
 from ..spatial_types.spatial_types import TransformationMatrix, Point3, Quaternion
 from ..world import World
-from ..world_description.actuators import Actuator
 from ..world_description.connections import (
     RevoluteConnection,
     PrismaticConnection,
@@ -47,7 +46,7 @@ from ..world_description.world_entity import (
     Body,
     KinematicStructureEntity,
     Connection,
-    WorldEntity,
+    WorldEntity, Actuator,
 )
 from ..world_description.world_modification import (
     AddKinematicStructureEntityModification,

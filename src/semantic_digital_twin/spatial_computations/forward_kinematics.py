@@ -3,11 +3,11 @@ from __future__ import absolute_import, annotations
 from collections import OrderedDict
 from functools import lru_cache
 from typing import Dict, Tuple, TYPE_CHECKING
+from uuid import UUID
 
 import numpy as np
 import rustworkx.visit
 
-from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.types import NpMatrix4x4
 from ..spatial_types import spatial_types as cas
 from ..spatial_types.math import inverse_frame
@@ -39,23 +39,23 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
     Dimensions are ((number of bodies) * 4) x 4.
     They are computed in batch for efficiency.
     """
-    body_name_to_forward_kinematics_idx: Dict[PrefixedName, int]
+    body_id_to_forward_kinematics_idx: Dict[UUID, int]
     """
-    Given a body name, returns the index of the first row in `forward_kinematics_for_all_bodies` that corresponds to that body.
+    Given a body id, returns the index of the first row in `forward_kinematics_for_all_bodies` that corresponds to that body.
     """
 
     def __init__(self, world: World):
         self.world = world
-        self.child_body_to_fk_expr: Dict[PrefixedName, cas.TransformationMatrix] = {
-            self.world.root.name: cas.TransformationMatrix()
+        self.child_body_to_fk_expr: Dict[UUID, cas.TransformationMatrix] = {
+            self.world.root.id: cas.TransformationMatrix()
         }
-        self.tf: Dict[Tuple[PrefixedName, PrefixedName], cas.Expression] = OrderedDict()
+        self.tf: Dict[Tuple[UUID, UUID], cas.Expression] = OrderedDict()
 
     def recompile(self):
-        self.child_body_to_fk_expr: Dict[PrefixedName, cas.TransformationMatrix] = {
-            self.world.root.name: cas.TransformationMatrix()
+        self.child_body_to_fk_expr: Dict[UUID, cas.TransformationMatrix] = {
+            self.world.root.id: cas.TransformationMatrix()
         }
-        self.tf: Dict[Tuple[PrefixedName, PrefixedName], cas.Expression] = OrderedDict()
+        self.tf: Dict[Tuple[UUID, UUID], cas.Expression] = OrderedDict()
         self.world._travel_branch(self.world.root, self)
         self.compile()
 
@@ -64,11 +64,11 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         Gathers forward kinematics expressions for a connection.
         """
         connection = edge[2]
-        map_T_parent = self.child_body_to_fk_expr[connection.parent.name]
-        self.child_body_to_fk_expr[connection.child.name] = map_T_parent.dot(
+        map_T_parent = self.child_body_to_fk_expr[connection.parent.id]
+        self.child_body_to_fk_expr[connection.child.id] = map_T_parent.dot(
             connection.origin_expression
         )
-        self.tf[(connection.parent.name, connection.child.name)] = (
+        self.tf[(connection.parent.id, connection.child.id)] = (
             connection.origin_as_position_quaternion()
         )
 
@@ -80,25 +80,25 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         """
         all_fks = cas.Expression.vstack(
             [
-                self.child_body_to_fk_expr[body.name]
+                self.child_body_to_fk_expr[body.id]
                 for body in self.world.kinematic_structure_entities
             ]
         )
         tf = cas.Expression.vstack([pose for pose in self.tf.values()])
         collision_fks = []
         for body in sorted(
-            self.world.bodies_with_enabled_collision, key=lambda b: b.name
+            self.world.bodies_with_enabled_collision, key=lambda b: b.id
         ):
             if body == self.world.root:
                 continue
-            collision_fks.append(self.child_body_to_fk_expr[body.name])
+            collision_fks.append(self.child_body_to_fk_expr[body.id])
         collision_fks = cas.Expression.vstack(collision_fks)
         params = [v.variables.position for v in self.world.degrees_of_freedom]
         self.compiled_all_fks = all_fks.compile(parameters=[params])
         self.compiled_collision_fks = collision_fks.compile(parameters=[params])
         self.compiled_tf = tf.compile(parameters=[params])
         self.idx_start = {
-            body.name: i * 4
+            body.id: i * 4
             for i, body in enumerate(self.world.kinematic_structure_entities)
         }
 
@@ -114,7 +114,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
     def compute_tf(self) -> np.ndarray:
         """
         Computes a (number of bodies) x 7 matrix of forward kinematics in position/quaternion format.
-        The rows are ordered by body name.
+        The rows are ordered by body id.
         The first 3 entries are position values, the last 4 entires are quaternion values in x, y, z, w order.
 
         This is not updated in 'recompute', because this functionality is only used with ROS.
@@ -177,10 +177,10 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         :param tip: Tip body to which the kinematics are computed.
         :return: Transformation matrix representing the relative pose of the tip body with respect to the root body.
         """
-        root = root.name
-        tip = tip.name
-        root_is_world = root == self.world.root.name
-        tip_is_world = tip == self.world.root.name
+        root = root.id
+        tip = tip.id
+        root_is_world = root == self.world.root.id
+        tip_is_world = tip == self.world.root.id
 
         if not tip_is_world:
             i = self.idx_start[tip]

@@ -8,9 +8,8 @@ from typing import List
 import tqdm
 from krrood.entity_query_language.symbol_graph import SymbolGraph
 from krrood.ormatic.dao import to_dao
-from krrood.ormatic.utils import drop_database
+from krrood.ormatic.utils import drop_database, create_engine
 from krrood.utils import recursive_subclasses
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from typing_extensions import TYPE_CHECKING
 
@@ -140,7 +139,7 @@ def parse_procthor_files_and_save_to_database(
     ), "Please set the SEMANTIC_DIGITAL_TWIN_DATABASE_URI environment variable."
 
     procthor_root = os.path.join(os.path.expanduser("~"), "ai2thor")
-    # procthor_root = os.path.join(os.path.expanduser("~"), "work", "ai2thor")
+    procthor_root = os.path.join(os.path.expanduser("~"), "work", "ai2thor")
 
     files = []
     for root, dirs, filenames in os.walk(procthor_root):
@@ -164,7 +163,7 @@ def parse_procthor_files_and_save_to_database(
         if not any([e in f for e in excluded_words]) and fbx_file_pattern.fullmatch(f)
     ]
     # Create database engine and session
-    engine = create_engine(semantic_digital_twin_database_uri)
+    engine = create_engine(f"{semantic_digital_twin_database_uri}")
     session = Session(engine)
 
     if drop_existing_database:
@@ -176,7 +175,7 @@ def parse_procthor_files_and_save_to_database(
     dao_names = []
     daos = []
 
-    for fbx_file in tqdm.tqdm(fbx_files):
+    for i, fbx_file in tqdm.tqdm(enumerate(fbx_files)):
         for dao in parse_fbx_file_to_world_mapping_daos(fbx_file):
             # Some item names (for example "bowl_19") were used for multiple items. For now the solution is to just
             # skip duplicate names.

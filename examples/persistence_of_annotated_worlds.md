@@ -31,9 +31,9 @@ First, let's load a world from a URDF file.
 import logging
 import os
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from krrood.ormatic.utils import create_engine
 from krrood.ormatic.dao import to_dao
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.orm.ormatic_interface import *

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from io import BytesIO
+from uuid import UUID
 
 import numpy as np
 import trimesh
@@ -54,6 +55,7 @@ class WorldMapping(AlternativeMapping[World]):
                     name=dof.name,
                     lower_limits=dof.lower_limits,
                     upper_limits=dof.upper_limits,
+                    id=dof.id,
                 )
                 result.add_degree_of_freedom(d)
             for connection in self.connections:
@@ -69,20 +71,20 @@ class WorldMapping(AlternativeMapping[World]):
 @dataclass
 class WorldStateMapping(AlternativeMapping[WorldState]):
     data: List[float]
-    names: List[PrefixedName]
+    ids: List[UUID]
 
     @classmethod
     def create_instance(cls, obj: WorldState):
         return cls(
             data=obj.data.ravel().tolist(),
-            names=obj._names,
+            ids=obj._ids,
         )
 
     def create_from_dao(self) -> WorldState:
         return WorldState(
-            data=np.array(self.data, dtype=np.float64).reshape((4, len(self.names))),
-            _names=self.names,
-            _index={name: idx for idx, name in enumerate(self.names)},
+            data=np.array(self.data, dtype=np.float64).reshape((4, len(self.ids))),
+            _ids=self.ids,
+            _index={name: idx for idx, name in enumerate(self.ids)},
         )
 
 
@@ -210,6 +212,7 @@ class DegreeOfFreedomMapping(AlternativeMapping[DegreeOfFreedom]):
     name: PrefixedName
     lower_limits: List[float]
     upper_limits: List[float]
+    id: UUID
 
     @classmethod
     def create_instance(cls, obj: DegreeOfFreedom):
@@ -217,13 +220,14 @@ class DegreeOfFreedomMapping(AlternativeMapping[DegreeOfFreedom]):
             name=obj.name,
             lower_limits=obj.lower_limits.data,
             upper_limits=obj.upper_limits.data,
+            id=obj.id,
         )
 
     def create_from_dao(self) -> DegreeOfFreedom:
         lower_limits = DerivativeMap(data=self.lower_limits)
         upper_limits = DerivativeMap(data=self.upper_limits)
         return DegreeOfFreedom(
-            name=self.name, lower_limits=lower_limits, upper_limits=upper_limits
+            name=self.name, lower_limits=lower_limits, upper_limits=upper_limits, id=self.id
         )
 
 

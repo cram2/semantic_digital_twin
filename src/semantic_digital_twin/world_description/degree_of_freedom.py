@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+from uuid import UUID
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json
 from typing_extensions import Dict, Any
 
-from .world_entity import WorldEntity
+from .world_entity import WorldEntity, WorldEntityWithID
 from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import UsageError
 from ..spatial_types import spatial_types as cas
@@ -24,7 +25,7 @@ class PositionVariable(cas.FloatVariable):
     """ Backreference """
 
     def resolve(self) -> float:
-        return self.dof._world.state[self.dof.name].position
+        return self.dof._world.state[self.dof.id].position
 
 
 @dataclass(eq=False)
@@ -38,7 +39,7 @@ class VelocityVariable(cas.FloatVariable):
     """ Backreference """
 
     def resolve(self) -> float:
-        return self.dof._world.state[self.dof.name].velocity
+        return self.dof._world.state[self.dof.id].velocity
 
 
 @dataclass(eq=False)
@@ -52,7 +53,7 @@ class AccelerationVariable(cas.FloatVariable):
     """ Backreference """
 
     def resolve(self) -> float:
-        return self.dof._world.state[self.dof.name].acceleration
+        return self.dof._world.state[self.dof.id].acceleration
 
 
 @dataclass(eq=False)
@@ -66,11 +67,11 @@ class JerkVariable(cas.FloatVariable):
     """ Backreference """
 
     def resolve(self) -> float:
-        return self.dof._world.state[self.dof.name].jerk
+        return self.dof._world.state[self.dof.id].jerk
 
 
-@dataclass
-class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
+@dataclass(eq=False)
+class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
     """
     A class representing a degree of freedom in a world model with associated derivatives and limits.
 
@@ -133,9 +134,6 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
         except KeyError:
             return False
 
-    def __hash__(self):
-        return hash(id(self))
-
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
@@ -146,12 +144,14 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> DegreeOfFreedom:
+        uuid = from_json(data["id"])
         lower_limits = DerivativeMap.from_json(data["lower_limits"], **kwargs)
         upper_limits = DerivativeMap.from_json(data["upper_limits"], **kwargs)
         return cls(
             name=PrefixedName.from_json(data["name"]),
             lower_limits=lower_limits,
             upper_limits=upper_limits,
+            id=uuid,
         )
 
     def __deepcopy__(self, memo):
@@ -160,6 +160,7 @@ class DegreeOfFreedom(WorldEntity, SubclassJSONSerializer):
             upper_limits=deepcopy(self.upper_limits),
             name=deepcopy(self.name),
             has_hardware_interface=self.has_hardware_interface,
+            id=self.id,
         )
         result._world = self._world
         # there can't be two symbols with the same name anyway

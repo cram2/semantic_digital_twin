@@ -244,7 +244,7 @@ class URDFParser:
             multiplier=multiplier,
             offset=offset,
             axis=Vector3(*map(int, joint.axis), reference_frame=parent),
-            dof_name=dof.name,
+            dof_id=dof.id,
         )
         return result
 

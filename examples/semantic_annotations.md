@@ -76,8 +76,8 @@ with world.modify_world():
     c2 = Connection6DoF.create_with_dofs(parent=root, child=apple_body_2, world=world)
     world.add_connection(c2)
     # Move it a bit so we can see both
-    world.state[c2.x.name].position = 0.3
-    world.state[c2.y.name].position = 0.2
+    world.state[c2.x.id].position = 0.3
+    world.state[c2.y.id].position = 0.2
     world.add_semantic_annotation(Apple(body=apple_body_2, name=PrefixedName("apple2")))
 
 print(world.get_semantic_annotations_by_type(Apple))

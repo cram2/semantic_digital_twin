@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
+from uuid import UUID
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from typing_extensions import (
     List,
     Dict,
@@ -13,13 +14,12 @@ from typing_extensions import (
     TYPE_CHECKING,
 )
 
-from .actuators import Actuator
 from .degree_of_freedom import DegreeOfFreedom
 from .world_entity import (
     KinematicStructureEntity,
     SemanticAnnotation,
     Connection,
-    WorldEntity,
+    WorldEntity, Actuator,
 )
 from ..adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
@@ -28,23 +28,6 @@ from ..datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
     from ..world import World
-
-
-@dataclass
-class UnknownWorldModification(Exception):
-    """
-    Raised when an unknown world modification is attempted.
-    """
-
-    call: Callable
-    kwargs: Dict[str, Any]
-
-    def __post_init__(self):
-        super().__init__(
-            " Make sure that world modifications are atomic and that every atomic modification is "
-            "represented by exactly one subclass of WorldModelModification."
-            "This module might be incomplete, you can help by expanding it."
-        )
 
 
 @dataclass
@@ -122,26 +105,26 @@ class RemoveBodyModification(WorldModelModification):
     Removal of a body from the world.
     """
 
-    body_name: PrefixedName
+    body_id: UUID
     """
-    The name of the body that was removed.
+    The UUID of the body that was removed.
     """
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]):
-        return cls(kwargs["kinematic_structure_entity"].name)
+        return cls(kwargs["kinematic_structure_entity"].id)
 
     def apply(self, world: World):
         world.remove_kinematic_structure_entity(
-            world.get_kinematic_structure_entity_by_name(self.body_name)
+            world.get_kinematic_structure_entity_by_id(self.body_id)
         )
 
     def to_json(self) -> Dict[str, Any]:
-        return {**super().to_json(), "body_name": self.body_name.to_json()}
+        return {**super().to_json(), "body_id": to_json(self.body_id)}
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(body_name=PrefixedName.from_json(data["body_name"], **kwargs))
+        return cls(body_id=from_json(data["body_id"]))
 
 
 @dataclass
@@ -185,28 +168,37 @@ class RemoveConnectionModification(WorldModelModification):
     Removal of a connection from the world.
     """
 
-    connection_name: PrefixedName
+    parent_id: UUID
     """
-    The name of the connection that was removed.
+    The UUID of the parent body of the removed connection.
+    """
+
+    child_id: UUID
+    """
+    The UUIDs of the entities connected by the removed connection.
     """
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]):
-        return cls(kwargs["connection"].name)
+        return cls(kwargs["connection"].parent.id, kwargs["connection"].child.id)
 
     def apply(self, world: World):
-        world._remove_connection(world.get_connection_by_name(self.connection_name))
+        parent = world.get_kinematic_structure_entity_by_id(self.parent_id)
+        child = world.get_kinematic_structure_entity_by_id(self.child_id)
+        world._remove_connection(world.get_connection(parent, child))
 
     def to_json(self):
         return {
             **super().to_json(),
-            "connection_name": self.connection_name.to_json(),
+            "parent_id": to_json(self.parent_id),
+            "child_id": to_json(self.child_id),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
-            connection_name=PrefixedName.from_json(data["connection_name"], **kwargs)
+            parent_id=from_json(data["parent_id"]),
+            child_id=from_json(data["child_id"]),
         )
 
 
@@ -239,31 +231,31 @@ class AddDegreeOfFreedomModification(WorldModelModification):
         return cls(dof=DegreeOfFreedom.from_json(data["dof"], **kwargs))
 
     def __eq__(self, other):
-        return self.dof.name == other.dof.name
+        return self.dof.id == other.dof.id
 
 
 @dataclass
 class RemoveDegreeOfFreedomModification(WorldModelModification):
-    dof_name: PrefixedName
+    dof_id: UUID
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]):
-        return cls(dof_name=kwargs["dof"].name)
+        return cls(dof_id=kwargs["dof"].id)
 
     def apply(self, world: World):
         world.remove_degree_of_freedom(
-            world.get_degree_of_freedom_by_name(self.dof_name)
+            world.get_degree_of_freedom_by_id(self.dof_id)
         )
 
     def to_json(self):
         return {
             **super().to_json(),
-            "dof": self.dof_name.to_json(),
+            "dof": to_json(self.dof_id),
         }
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        return cls(dof_name=PrefixedName.from_json(data["dof"], **kwargs))
+        return cls(dof_id=from_json(data["dof"]))
 
 
 @dataclass
@@ -341,6 +333,29 @@ class AddActuatorModification(WorldModelModification):
 
 
 @dataclass
+class RemoveActuatorModification(WorldModelModification):
+    actuator_id: UUID
+
+    @classmethod
+    def from_kwargs(cls, kwargs: Dict[str, Any]):
+        return cls(actuator_id=kwargs["actuator"].id)
+
+    def apply(self, world: World):
+        world.remove_actuator(
+            world.get_actuator_by_id(self.actuator_id)
+        )
+
+    def to_json(self):
+        return {
+            **super().to_json(),
+            "dof": to_json(self.actuator_id),
+        }
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        return cls(actuator_id=from_json(data["actuator"]))
+
+@dataclass
 class WorldModelModificationBlock(SubclassJSONSerializer):
     """
     A sequence of WorldModelModifications that were applied to the world within one `with world.modify_world()` context.
@@ -359,7 +374,7 @@ class WorldModelModificationBlock(SubclassJSONSerializer):
     def to_json(self):
         return {
             **super().to_json(),
-            "modifications": [m.to_json() for m in self.modifications],
+            "modifications": to_json(self.modifications),
         }
 
     @classmethod
@@ -386,28 +401,28 @@ class WorldModelModificationBlock(SubclassJSONSerializer):
 
 @dataclass
 class SetDofHasHardwareInterface(WorldModelModification):
-    degree_of_freedom_names: List[PrefixedName]
+    degree_of_freedom_ids: List[UUID]
     value: bool
 
     def apply(self, world: World):
-        for dof_name in self.degree_of_freedom_names:
-            world.get_degree_of_freedom_by_name(dof_name).has_hardware_interface = (
+        for dof_id in self.degree_of_freedom_ids:
+            world.get_degree_of_freedom_by_id(dof_id).has_hardware_interface = (
                 self.value
             )
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]) -> Self:
         dofs = kwargs["dofs"]
-        degree_of_freedom_names = [dof.name for dof in dofs]
+        degree_of_freedom_ids = [dof.id for dof in dofs]
         return cls(
-            degree_of_freedom_names=degree_of_freedom_names, value=kwargs["value"]
+            degree_of_freedom_ids=degree_of_freedom_ids, value=kwargs["value"]
         )
 
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "degree_of_freedom_names": [
-                dof.to_json() for dof in self.degree_of_freedom_names
+            "degree_of_freedom_ids": [
+                to_json(dof_id) for dof_id in self.degree_of_freedom_ids
             ],
             "value": self.value,
         }
@@ -415,9 +430,9 @@ class SetDofHasHardwareInterface(WorldModelModification):
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
-            degree_of_freedom_names=[
-                PrefixedName.from_json(dof, **kwargs)
-                for dof in data["degree_of_freedom_names"]
+            degree_of_freedom_ids=[
+                from_json(_id)
+                for _id in data["degree_of_freedom_ids"]
             ],
             value=data["value"],
         )

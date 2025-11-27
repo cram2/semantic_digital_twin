@@ -13,7 +13,7 @@ from enum import IntEnum
 
 import casadi as ca
 import numpy as np
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
 from scipy import sparse as sp
 from typing_extensions import (
     Optional,
@@ -1879,7 +1879,7 @@ class ReferenceFrameMixin:
             return None
         tracker = KinematicStructureEntityKwargsTracker.from_kwargs(kwargs)
         return tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(frame_data)
+            id=from_json(frame_data)
         )
 
 
@@ -1934,10 +1934,10 @@ class TransformationMatrix(
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         reference_frame = cls._parse_optional_frame_from_json(
-            data, key="reference_frame", **kwargs
+            data, key="reference_frame_id", **kwargs
         )
         child_frame = cls._parse_optional_frame_from_json(
-            data, key="child_frame", **kwargs
+            data, key="child_frame_id", **kwargs
         )
         return cls.from_xyz_quaternion(
             *data["position"][:3],
@@ -1951,9 +1951,9 @@ class TransformationMatrix(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame_id"] = to_json(self.reference_frame.id)
         if self.child_frame is not None:
-            result["child_frame"] = self.child_frame.name.to_json()
+            result["child_frame_id"] = to_json(self.child_frame.id)
         result["position"] = self.to_position().to_np().tolist()
         result["rotation"] = self.to_quaternion().to_np().tolist()
         return result
@@ -2300,7 +2300,7 @@ class RotationMatrix(
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         reference_frame = cls._parse_optional_frame_from_json(
-            data, key="reference_frame", **kwargs
+            data, key="reference_frame_id", **kwargs
         )
         return Quaternion.from_iterable(
             data["quaternion"],
@@ -2312,7 +2312,7 @@ class RotationMatrix(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame_id"] = to_json(self.reference_frame.id)
         result["quaternion"] = self.to_quaternion().to_np().tolist()
         return result
 
@@ -2662,7 +2662,7 @@ class Point3(
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         reference_frame = cls._parse_optional_frame_from_json(
-            data, key="reference_frame", **kwargs
+            data, key="reference_frame_id", **kwargs
         )
         return cls.from_iterable(
             data["data"][:3],
@@ -2674,7 +2674,7 @@ class Point3(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame_id"] = to_json(self.reference_frame.id)
         result["data"] = self.to_np().tolist()
         return result
 
@@ -2851,7 +2851,7 @@ class Vector3(
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         reference_frame = cls._parse_optional_frame_from_json(
-            data, key="reference_frame", **kwargs
+            data, key="reference_frame_id", **kwargs
         )
         return cls.from_iterable(
             data["data"][:3],
@@ -2863,7 +2863,7 @@ class Vector3(
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame_id"] = to_json(self.reference_frame.id)
         result["data"] = self.to_np().tolist()
         return result
 
@@ -3176,7 +3176,7 @@ class Quaternion(SymbolicType, ReferenceFrameMixin, SubclassJSONSerializer):
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         reference_frame = cls._parse_optional_frame_from_json(
-            data, key="reference_frame", **kwargs
+            data, key="reference_frame_id", **kwargs
         )
         return cls.from_iterable(
             data["data"],
@@ -3188,7 +3188,7 @@ class Quaternion(SymbolicType, ReferenceFrameMixin, SubclassJSONSerializer):
             raise SpatialTypeNotJsonSerializable(self)
         result = super().to_json()
         if self.reference_frame is not None:
-            result["reference_frame"] = self.reference_frame.name.to_json()
+            result["reference_frame_id"] = to_json(self.reference_frame.id)
         result["data"] = self.to_np().tolist()
         return result
 

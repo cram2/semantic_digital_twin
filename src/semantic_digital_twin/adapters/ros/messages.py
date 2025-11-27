@@ -1,11 +1,12 @@
 from abc import ABC
 from dataclasses import dataclass
 from functools import lru_cache
+from uuid import UUID
+
 from typing_extensions import Dict, Any, Self, List
 
-from krrood.adapters.json_serializer import SubclassJSONSerializer
+from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 
-from ...datastructures.prefixed_name import PrefixedName
 from ...world_description.world_modification import (
     WorldModelModificationBlock,
 )
@@ -74,9 +75,9 @@ class WorldStateUpdate(Message):
     Class describing the updates to the free variables of a world state.
     """
 
-    prefixed_names: List[PrefixedName]
+    ids: List[UUID]
     """
-    The prefixed names of the changed free variables.
+    The ids of the changed free variables.
     """
 
     states: List[float]
@@ -87,7 +88,7 @@ class WorldStateUpdate(Message):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "prefixed_names": [n.to_json() for n in self.prefixed_names],
+            "ids": to_json(self.ids),
             "states": list(self.states),
         }
 
@@ -95,9 +96,7 @@ class WorldStateUpdate(Message):
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         return cls(
             meta_data=MetaData.from_json(data["meta_data"], **kwargs),
-            prefixed_names=[
-                PrefixedName.from_json(n, **kwargs) for n in data["prefixed_names"]
-            ],
+            ids=from_json(data["ids"]),
             states=data["states"],
         )
 
@@ -165,7 +164,7 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     The ordered list of world model modification blocks.
     """
 
-    prefixed_names: List[PrefixedName]
+    ids: List[UUID]
     """
     The names of the free variables contained in the state snapshot.
     """
@@ -178,9 +177,9 @@ class WorldModelSnapshot(SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         return {
             **super().to_json(),
-            "modifications": [m.to_json() for m in self.modifications],
+            "modifications": to_json(self.modifications),
             "state": {
-                "prefixed_names": [n.to_json() for n in self.prefixed_names],
+                "ids": to_json(self.ids),
                 "states": list(self.states),
             },
         }
@@ -193,8 +192,6 @@ class WorldModelSnapshot(SubclassJSONSerializer):
                 WorldModelModificationBlock.from_json(m, **kwargs)
                 for m in data.get("modifications", [])
             ],
-            prefixed_names=[
-                PrefixedName.from_json(n, **kwargs) for n in state.get("prefixed_names", [])
-            ],
+            ids=from_json(state["ids"]),
             states=state.get("states", []),
         )

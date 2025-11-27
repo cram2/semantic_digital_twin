@@ -30,10 +30,10 @@ from semantic_digital_twin.testing import pr2_world, tracy_world, hsrb_world
 
 def test_compute_chain_of_bodies_pr2(pr2_world):
     root_link = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("base_footprint")
+        "base_footprint"
     )
     tip_link = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     real = pr2_world.compute_chain_of_kinematic_structure_entities(
         root=root_link, tip=tip_link
@@ -59,10 +59,10 @@ def test_compute_chain_of_bodies_pr2(pr2_world):
 
 def test_compute_chain_of_connections_pr2(pr2_world):
     root_link = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("base_footprint")
+        "base_footprint"
     )
     tip_link = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     real = pr2_world.compute_chain_of_connections(root=root_link, tip=tip_link)
     real = [x.name for x in real]
@@ -85,10 +85,10 @@ def test_compute_chain_of_connections_pr2(pr2_world):
 
 def test_compute_chain_of_bodies_error_pr2(pr2_world):
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("base_footprint")
+        "base_footprint"
     )
     with pytest.raises(AssertionError):
         pr2_world.compute_chain_of_kinematic_structure_entities(root, tip)
@@ -96,10 +96,10 @@ def test_compute_chain_of_bodies_error_pr2(pr2_world):
 
 def test_compute_chain_of_connections_error_pr2(pr2_world):
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("base_footprint")
+        "base_footprint"
     )
     with pytest.raises(AssertionError):
         pr2_world.compute_chain_of_connections(root, tip)
@@ -107,10 +107,10 @@ def test_compute_chain_of_connections_error_pr2(pr2_world):
 
 def test_compute_split_chain_of_bodies_pr2(pr2_world):
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_r_finger_tip_link")
+        "l_gripper_r_finger_tip_link"
     )
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_l_finger_tip_link")
+        "l_gripper_l_finger_tip_link"
     )
     chain1, connection, chain2 = (
         pr2_world.compute_split_chain_of_kinematic_structure_entities(root, tip)
@@ -128,10 +128,10 @@ def test_compute_split_chain_of_bodies_pr2(pr2_world):
 
 def test_get_split_chain_pr2(pr2_world):
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_r_finger_tip_link")
+        "l_gripper_r_finger_tip_link"
     )
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_l_finger_tip_link")
+        "l_gripper_l_finger_tip_link"
     )
     chain1, chain2 = pr2_world.compute_split_chain_of_connections(root, tip)
     chain1 = [n.name.name for n in chain1]
@@ -142,12 +142,15 @@ def test_get_split_chain_pr2(pr2_world):
 
 def test_compute_fk_np_pr2(pr2_world):
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_tool_frame")
+        "l_gripper_tool_frame"
     )
+    pr2_world.notify_state_change()
     fk = pr2_world.compute_forward_kinematics_np(root, tip)
+    # fk = pr2_world.compose_forward_kinematics_expression(root, tip).evaluate()
+    # print(pr2_world.state.to_position_dict())
     np.testing.assert_array_almost_equal(
         fk,
         np.array(
@@ -164,7 +167,7 @@ def test_compute_fk_np_pr2(pr2_world):
 def test_compute_fk_np_pr2_root_left_hand(pr2_world):
     tip = pr2_world.root
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_gripper_tool_frame")
+        "l_gripper_tool_frame"
     )
 
     connection = pr2_world.get_connections_by_type(OmniDrive)[0]
@@ -187,10 +190,10 @@ def test_compute_fk_np_pr2_root_left_hand(pr2_world):
 
 def test_compute_fk_np_l_elbow_flex_joint_pr2(pr2_world):
     tip = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_elbow_flex_link")
+        "l_elbow_flex_link"
     )
     root = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("l_upper_arm_link")
+        "l_upper_arm_link"
     )
 
     fk_expr = pr2_world.compose_forward_kinematics_expression(root, tip)
@@ -212,7 +215,7 @@ def test_compute_fk_np_l_elbow_flex_joint_pr2(pr2_world):
 def test_compute_ik(pr2_world):
     bf = pr2_world.root
     eef = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     fk = pr2_world.compute_forward_kinematics_np(bf, eef)
     fk[0, 3] -= 0.2
@@ -220,7 +223,7 @@ def test_compute_ik(pr2_world):
         bf, eef, TransformationMatrix(fk, reference_frame=bf)
     )
     for joint, state in joint_state.items():
-        pr2_world.state[joint.name].position = state
+        pr2_world.state[joint.id].position = state
     pr2_world.notify_state_change()
     actual_fk = pr2_world.compute_forward_kinematics_np(bf, eef)
     assert np.allclose(actual_fk, fk, atol=1e-3)
@@ -229,7 +232,7 @@ def test_compute_ik(pr2_world):
 def test_compute_ik_max_iter(pr2_world):
     bf = pr2_world.root
     eef = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("r_gripper_tool_frame")
+        "r_gripper_tool_frame"
     )
     fk = pr2_world.compute_forward_kinematics_np(bf, eef)
     fk[2, 3] = 10
@@ -242,7 +245,7 @@ def test_compute_ik_max_iter(pr2_world):
 def test_compute_ik_unreachable(pr2_world):
     bf = pr2_world.root
     eef = pr2_world.get_kinematic_structure_entity_by_name(
-        PrefixedName("base_footprint")
+        "base_footprint"
     )
     fk = pr2_world.compute_forward_kinematics_np(bf, eef)
     fk[2, 3] = -1
@@ -254,38 +257,38 @@ def test_compute_ik_unreachable(pr2_world):
 
 def test_apply_control_commands_omni_drive_pr2(pr2_world):
     omni_drive: OmniDrive = pr2_world.get_connection_by_name(
-        PrefixedName("odom_combined_T_base_footprint")
+        "odom_combined_T_base_footprint"
     )
     cmd = np.zeros((len(pr2_world.degrees_of_freedom)), dtype=float)
-    cmd[pr2_world.state._index[omni_drive.x_velocity.name]] = 100
-    cmd[pr2_world.state._index[omni_drive.y_velocity.name]] = 100
-    cmd[pr2_world.state._index[omni_drive.yaw.name]] = 100
+    cmd[pr2_world.state._index[omni_drive.x_velocity.id]] = 100
+    cmd[pr2_world.state._index[omni_drive.y_velocity.id]] = 100
+    cmd[pr2_world.state._index[omni_drive.yaw.id]] = 100
     dt = 0.1
     pr2_world.apply_control_commands(cmd, dt, Derivatives.jerk)
-    assert pr2_world.state[omni_drive.yaw.name].jerk == 100.0
-    assert pr2_world.state[omni_drive.yaw.name].acceleration == 100.0 * dt
-    assert pr2_world.state[omni_drive.yaw.name].velocity == 100.0 * dt * dt
-    assert pr2_world.state[omni_drive.yaw.name].position == 100.0 * dt * dt * dt
+    assert pr2_world.state[omni_drive.yaw.id].jerk == 100.0
+    assert pr2_world.state[omni_drive.yaw.id].acceleration == 100.0 * dt
+    assert pr2_world.state[omni_drive.yaw.id].velocity == 100.0 * dt * dt
+    assert pr2_world.state[omni_drive.yaw.id].position == 100.0 * dt * dt * dt
 
-    assert pr2_world.state[omni_drive.x_velocity.name].jerk == 100.0
-    assert pr2_world.state[omni_drive.x_velocity.name].acceleration == 100.0 * dt
-    assert pr2_world.state[omni_drive.x_velocity.name].velocity == 100.0 * dt * dt
-    assert pr2_world.state[omni_drive.x_velocity.name].position == 0
+    assert pr2_world.state[omni_drive.x_velocity.id].jerk == 100.0
+    assert pr2_world.state[omni_drive.x_velocity.id].acceleration == 100.0 * dt
+    assert pr2_world.state[omni_drive.x_velocity.id].velocity == 100.0 * dt * dt
+    assert pr2_world.state[omni_drive.x_velocity.id].position == 0
 
-    assert pr2_world.state[omni_drive.y_velocity.name].jerk == 100.0
-    assert pr2_world.state[omni_drive.y_velocity.name].acceleration == 100.0 * dt
-    assert pr2_world.state[omni_drive.y_velocity.name].velocity == 100.0 * dt * dt
-    assert pr2_world.state[omni_drive.y_velocity.name].position == 0
+    assert pr2_world.state[omni_drive.y_velocity.id].jerk == 100.0
+    assert pr2_world.state[omni_drive.y_velocity.id].acceleration == 100.0 * dt
+    assert pr2_world.state[omni_drive.y_velocity.id].velocity == 100.0 * dt * dt
+    assert pr2_world.state[omni_drive.y_velocity.id].position == 0
 
-    assert pr2_world.state[omni_drive.x.name].jerk == 0.0
-    assert pr2_world.state[omni_drive.x.name].acceleration == 0.0
-    assert pr2_world.state[omni_drive.x.name].velocity == 0.0
-    assert pr2_world.state[omni_drive.x.name].position == 0.08951707486311977
+    assert pr2_world.state[omni_drive.x.id].jerk == 0.0
+    assert pr2_world.state[omni_drive.x.id].acceleration == 0.0
+    assert pr2_world.state[omni_drive.x.id].velocity == 0.0
+    assert pr2_world.state[omni_drive.x.id].position == 0.08951707486311977
 
-    assert pr2_world.state[omni_drive.y.name].jerk == 0.0
-    assert pr2_world.state[omni_drive.y.name].acceleration == 0.0
-    assert pr2_world.state[omni_drive.y.name].velocity == 0.0
-    assert pr2_world.state[omni_drive.y.name].position == 0.1094837581924854
+    assert pr2_world.state[omni_drive.y.id].jerk == 0.0
+    assert pr2_world.state[omni_drive.y.id].acceleration == 0.0
+    assert pr2_world.state[omni_drive.y.id].velocity == 0.0
+    assert pr2_world.state[omni_drive.y.id].position == 0.1094837581924854
 
 
 def test_search_for_connections_of_type(pr2_world: World):

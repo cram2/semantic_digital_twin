@@ -43,7 +43,7 @@ class MinimalRobot(AbstractRobot):
                 _world=world,
             )
 
-            world.add_semantic_annotation(robot, skip_duplicates=True)
+            world.add_semantic_annotation(robot)
 
             vel_limits = defaultdict(lambda: 1.0)
             robot.tighten_dof_velocity_limits_of_1dof_connections(new_limits=vel_limits)

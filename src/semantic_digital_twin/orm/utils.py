@@ -22,7 +22,7 @@ def persistent_database_available() -> bool:
         return False
 
     try:
-        engine = create_engine(f"mysql+pymysql://{semantic_digital_twin_database_uri}")
+        engine = create_engine(f"{semantic_digital_twin_database_uri}")
         with engine.connect():
             ...
     except OperationalError as e:

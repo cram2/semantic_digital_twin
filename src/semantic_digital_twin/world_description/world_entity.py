@@ -10,7 +10,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from dataclasses import fields
 from functools import lru_cache
-from typing import ClassVar
+from uuid import UUID, uuid4
+from typing import ClassVar, List, Dict, Any
 
 import numpy as np
 import trimesh
@@ -55,10 +56,13 @@ if TYPE_CHECKING:
 id_generator = IDGenerator()
 
 
-@dataclass(unsafe_hash=True, eq=False)
+@dataclass(eq=False)
 class WorldEntity(Symbol):
     """
     A class representing an entity in the world.
+
+    .. warning::
+        The WorldEntity class is not meant to be instantiated directly.
     """
 
     _world: Optional[World] = field(default=None, repr=False, kw_only=True, hash=False)
@@ -73,7 +77,7 @@ class WorldEntity(Symbol):
     The semantic annotations this entity is part of.
     """
 
-    name: PrefixedName = field(default=None, kw_only=True)
+    name: PrefixedName = field(default=None, kw_only=True, hash=False)
     """
     The identifier for this world entity.
     """
@@ -85,7 +89,38 @@ class WorldEntity(Symbol):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        return self.name == other.name and self._world is other._world
+        return hash(self) == hash(other)
+
+    def add_to_world(self, world: World):
+        self._world = world
+
+    def remove_from_world(self):
+        self._world = None
+
+@dataclass(eq=False)
+class WorldEntityWithID(WorldEntity, SubclassJSONSerializer):
+    """
+    A WorldEntity that has a unique identifier.
+
+    .. warning::
+        The WorldEntity class is not meant to be instantiated directly.
+    """
+
+    id: UUID = field(default_factory=uuid4)
+    """
+    A unique identifier for this world entity.
+    """
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def add_to_world(self, world: World):
+        super().add_to_world(world)
+
+    def to_json(self) -> Dict[str, Any]:
+        result = super().to_json()
+        result["id"] = to_json(self.id)
+        return result
 
 
 @dataclass
@@ -130,8 +165,8 @@ class CollisionCheckingConfig(SubclassJSONSerializer):
         return cls(**cls_kwargs)
 
 
-@dataclass(unsafe_hash=True, eq=False)
-class KinematicStructureEntity(WorldEntity, SubclassJSONSerializer, ABC):
+@dataclass(eq=False)
+class KinematicStructureEntity(WorldEntityWithID, SubclassJSONSerializer, ABC):
     """
     An entity that is part of the kinematic structure of the world.
     """
@@ -145,6 +180,10 @@ class KinematicStructureEntity(WorldEntity, SubclassJSONSerializer, ABC):
     """
     The index of the entity in `_world.kinematic_structure`.
     """
+
+    def remove_from_world(self):
+        super().remove_from_world()
+        self.index = None
 
     @property
     @abstractmethod
@@ -309,9 +348,6 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
     def reset_temporary_collision_config(self):
         self.temp_collision_config = None
 
-    def __hash__(self):
-        return hash(self.name)
-
     def has_collision(
         self, volume_threshold: float = 1.001e-6, surface_threshold: float = 0.00061
     ) -> bool:
@@ -416,14 +452,15 @@ class Body(KinematicStructureEntity, SubclassJSONSerializer):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        result = cls(name=PrefixedName.from_json(data["name"], **kwargs))
-
+        result = cls(
+            name=PrefixedName.from_json(data["name"], **kwargs),
+            id=from_json(data["id"]))
         # add the new body so that the transformation matrices in the shapes can use it as reference frame.
         tracker = KinematicStructureEntityKwargsTracker.from_kwargs(kwargs)
-        if not tracker.has_kinematic_structure_entity(result.name):
+        if not tracker.has_kinematic_structure_entity(result.id):
             tracker.add_kinematic_structure_entity(result)
         else:
-            result = tracker.get_kinematic_structure_entity(result.name)
+            result = tracker.get_kinematic_structure_entity(result.id)
 
         collision = ShapeCollection.from_json(data["collision"], **kwargs)
         visual = ShapeCollection.from_json(data["visual"], **kwargs)
@@ -556,7 +593,7 @@ class Region(KinematicStructureEntity):
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
-        result = cls(name=PrefixedName.from_json(data["name"]))
+        result = cls(name=PrefixedName.from_json(data["name"], id=from_json(data["id"])))
         area = ShapeCollection.from_json(data["area"])
         for shape in area:
             shape.origin.reference_frame = result
@@ -613,7 +650,7 @@ class SemanticAnnotation(WorldEntity, SubclassJSONSerializer):
         return hash(
             tuple(
                 [self.__class__]
-                + sorted([kse.name for kse in self.kinematic_structure_entities])
+                + sorted([kse.id for kse in self.kinematic_structure_entities])
             )
         )
 
@@ -880,8 +917,8 @@ class Connection(WorldEntity, SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         result = super().to_json()
         result["name"] = self.name.to_json()
-        result["parent_name"] = self.parent.name.to_json()
-        result["child_name"] = self.child.name.to_json()
+        result["parent_id"] = to_json(self.parent.id)
+        result["child_id"] = to_json(self.child.id)
         result["parent_T_connection_expression"] = (
             self.parent_T_connection_expression.to_json()
         )
@@ -891,10 +928,10 @@ class Connection(WorldEntity, SubclassJSONSerializer):
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
         tracker = KinematicStructureEntityKwargsTracker.from_kwargs(kwargs)
         parent = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["parent_name"])
+            id=from_json(data["parent_id"])
         )
         child = tracker.get_kinematic_structure_entity(
-            name=PrefixedName.from_json(data["child_name"])
+            id=from_json(data["child_id"])
         )
         return cls(
             name=PrefixedName.from_json(data["name"]),
@@ -1096,3 +1133,51 @@ def _attr_values(
             continue
         if _is_entity_semantic_annotation_or_iterable(v, aggregation_type):
             yield v
+
+
+@dataclass(eq=False)
+class Actuator(WorldEntityWithID, SubclassJSONSerializer):
+    """
+    Represents an actuator in the world model.
+    """
+
+    _dofs: List[DegreeOfFreedom] = field(default_factory=list, init=False, repr=False)
+
+    def to_json(self) -> Dict[str, Any]:
+        result = super().to_json()
+        result["name"] = self.name.to_json()
+        result["dofs"] = to_json(self._dofs)
+        return result
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Actuator:
+        actuator = cls(
+            name=from_json(data["name"]),
+            id=from_json(data["id"]),
+        )
+        dofs_data = data.get("dofs", [])
+        assert (
+            len(dofs_data) > 0
+        ), "An actuator must have at least one degree of freedom."
+        for dof_data in dofs_data:
+            dof = from_json(dof_data)
+            actuator.add_dof(dof)
+        return actuator
+
+    @property
+    def dofs(self) -> List[DegreeOfFreedom]:
+        """
+        Returns the degrees of freedom associated with this actuator.
+        """
+        return self._dofs
+
+    def add_dof(self, dof: DegreeOfFreedom) -> None:
+        """
+        Adds a degree of freedom to this actuator.
+
+        :param dof: The degree of freedom to add.
+        """
+        self._dofs.append(dof)
+
+    def __hash__(self):
+        return hash(self.id)

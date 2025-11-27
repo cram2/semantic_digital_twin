@@ -6,9 +6,8 @@ import prior
 import tqdm
 from krrood.entity_query_language.symbol_graph import SymbolGraph
 from krrood.ormatic.dao import to_dao, ToDAOState
-from krrood.ormatic.utils import classes_of_module, drop_database
+from krrood.ormatic.utils import classes_of_module, drop_database, create_engine
 from krrood.utils import recursive_subclasses
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 import semantic_digital_twin.adapters.procthor.procthor_semantic_annotations

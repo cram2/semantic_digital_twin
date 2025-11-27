@@ -3,23 +3,16 @@ import logging
 import math
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Dict, Tuple, Union, Set, Optional, List, Any, Self
 from pathlib import Path
+from typing import Dict, Tuple, Union, Set, Optional, List, Any, Self
 
 import numpy as np
-from krrood.entity_query_language.entity import the, entity, let
-from krrood.ormatic.eql_interface import eql_to_sql
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.orm import Session
 
 from ...datastructures.prefixed_name import PrefixedName
-from ...orm.model import WorldMapping
 from ...orm.ormatic_interface import *
-from ...spatial_types.spatial_types import (
-    TransformationMatrix,
-    Point3,
-)
 from ...semantic_annotations.factories import (
     DoorFactory,
     RoomFactory,
@@ -30,6 +23,10 @@ from ...semantic_annotations.factories import (
     HorizontalSemanticDirection,
     SemanticPositionDescription,
     VerticalSemanticDirection,
+)
+from ...spatial_types.spatial_types import (
+    TransformationMatrix,
+    Point3,
 )
 from ...world import World
 from ...world_description.connections import FixedConnection
@@ -508,9 +505,7 @@ class ProcthorObject:
                     child=child_world.root,
                     parent_T_connection_expression=obj_T_child,
                 )
-                body_world.merge_world(
-                    child_world, child_connection, assign_unique_name_to_duplicates=True
-                )
+                body_world.merge_world(child_world, child_connection)
 
             return body_world
 
@@ -588,9 +583,7 @@ class ProcTHORParser:
         world = World(name=house_name)
         with world.modify_world():
             world_root = Body(name=PrefixedName(house_name))
-            world.add_kinematic_structure_entity(
-                world_root, assign_unique_name_to_duplicates=True
-            )
+            world.add_kinematic_structure_entity(world_root)
 
             self.import_rooms(world, self.house["rooms"])
 
@@ -619,9 +612,7 @@ class ProcTHORParser:
                 child=room_world.root,
                 parent_T_connection_expression=procthor_room.world_T_room,
             )
-            world.merge_world(
-                room_world, room_connection, assign_unique_name_to_duplicates=True
-            )
+            world.merge_world(room_world, room_connection)
 
     def import_objects(self, world: World, objects: List[Dict]):
         """
@@ -642,9 +633,7 @@ class ProcTHORParser:
                 child=obj_world.root,
                 parent_T_connection_expression=procthor_object.world_T_obj,
             )
-            world.merge_world(
-                obj_world, obj_connection, assign_unique_name_to_duplicates=True
-            )
+            world.merge_world(obj_world, obj_connection)
 
     def import_walls_and_doors(
         self, world: World, walls: List[Dict], doors: List[Dict]
@@ -665,9 +654,7 @@ class ProcTHORParser:
                 child=wall_world.root,
                 parent_T_connection_expression=procthor_wall.world_T_wall,
             )
-            world.merge_world(
-                wall_world, wall_connection, assign_unique_name_to_duplicates=True
-            )
+            world.merge_world(wall_world, wall_connection)
 
     @staticmethod
     def _build_procthor_wall_from_polygon(

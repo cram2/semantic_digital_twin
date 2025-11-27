@@ -1,5 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Union, Iterator
+from uuid import UUID
 
 from typing_extensions import MutableMapping, List, Dict, Self, TYPE_CHECKING
 
@@ -8,6 +10,11 @@ import numpy as np
 from .degree_of_freedom import DegreeOfFreedom
 from ..callbacks.callback import StateChangeCallback
 from ..datastructures.prefixed_name import PrefixedName
+from ..exceptions import (
+    DofNotInWorldStateError,
+    IncorrectWorldStateValueShapeError,
+    MismatchingCommandLengthError,
+)
 from ..spatial_types.derivatives import Derivatives
 from ..spatial_types import spatial_types as cas
 
@@ -77,11 +84,11 @@ class WorldState(MutableMapping):
     # 4 rows (pos, vel, acc, jerk), columns are joints
     data: np.ndarray = field(default_factory=lambda: np.zeros((4, 0), dtype=float))
 
-    # list of joint names in column order
-    _names: List[PrefixedName] = field(default_factory=list)
+    # list of dof ids in column order
+    _ids: List[UUID] = field(default_factory=list)
 
-    # maps joint_name -> column index
-    _index: Dict[PrefixedName, int] = field(default_factory=dict)
+    # maps dof ids -> column index
+    _index: Dict[UUID, int] = field(default_factory=dict)
 
     version: int = 0
     """
@@ -105,10 +112,10 @@ class WorldState(MutableMapping):
         for callback in self.state_change_callbacks:
             callback.notify()
 
-    def _add_dof(self, name: PrefixedName) -> None:
-        idx = len(self._names)
-        self._names.append(name)
-        self._index[name] = idx
+    def _add_dof(self, uuid: UUID) -> None:
+        idx = len(self._ids)
+        self._ids.append(uuid)
+        self._index[uuid] = idx
         # append a zero column
         new_col = np.zeros((4, 1), dtype=float)
         if self.data.shape[1] == 0:
@@ -116,43 +123,41 @@ class WorldState(MutableMapping):
         else:
             self.data = np.hstack((self.data, new_col))
 
-    def __getitem__(self, name: PrefixedName) -> WorldStateView:
-        if name not in self._index:
-            self._add_dof(name)
-        idx = self._index[name]
+    def __getitem__(self, dof_id: UUID) -> WorldStateView:
+        if dof_id not in self._index:
+            raise DofNotInWorldStateError(dof_id)
+        idx = self._index[dof_id]
         return WorldStateView(self.data[:, idx])
 
     def __setitem__(
-        self, name: PrefixedName, value: np.ndarray | WorldStateView
+        self, dof_id: UUID, value: np.ndarray | WorldStateView
     ) -> None:
+        if dof_id not in self._index:
+            raise DofNotInWorldStateError(dof_id)
         if isinstance(value, WorldStateView):
             value = value.data
         arr = np.asarray(value, dtype=float)
         if arr.shape != (4,):
-            raise ValueError(
-                f"Value for '{name}' must be length-4 array (pos, vel, acc, jerk)."
-            )
-        if name not in self._index:
-            self._add_dof(name)
-        idx = self._index[name]
+            raise IncorrectWorldStateValueShapeError(dof_id)
+        idx = self._index[dof_id]
         self.data[:, idx] = arr
 
-    def __delitem__(self, name: PrefixedName) -> None:
-        if name not in self._index:
-            raise KeyError(name)
-        idx = self._index.pop(name)
-        self._names.pop(idx)
+    def __delitem__(self, dof_id: UUID) -> None:
+        if dof_id not in self._index:
+            raise DofNotInWorldStateError(dof_id)
+        idx = self._index.pop(dof_id)
+        self._ids.pop(idx)
         # remove column from data
         self.data = np.delete(self.data, idx, axis=1)
         # rebuild indices
-        for i, nm in enumerate(self._names):
+        for i, nm in enumerate(self._ids):
             self._index[nm] = i
 
-    def __iter__(self) -> iter:
-        return iter(self._names)
+    def __iter__(self) -> Iterator[UUID]:
+        return iter(self._ids)
 
     def __len__(self) -> int:
-        return len(self._names)
+        return len(self._ids)
 
     def __eq__(self, other: Self) -> bool:
         if self is other:
@@ -161,7 +166,7 @@ class WorldState(MutableMapping):
         if len(self) != len(other):
             return False
 
-        if set(self._names) != set(other._names):
+        if set(self._ids) != set(other._ids):
             return False
 
         return np.allclose(
@@ -172,29 +177,30 @@ class WorldState(MutableMapping):
             equal_nan=True,
         )
 
-    def keys(self) -> List[PrefixedName]:
-        return self._names
+    def keys(self) -> List[UUID]:
+        return self._ids
 
-    def items(self) -> List[tuple[PrefixedName, np.ndarray]]:
-        return [(name, self.data[:, self._index[name]].copy()) for name in self._names]
+    def items(self) -> List[tuple[UUID, np.ndarray]]:
+        return [(dof_id, self.data[:, self._index[dof_id]].copy()) for dof_id in self._ids]
 
     def values(self) -> List[np.ndarray]:
-        return [self.data[:, self._index[name]].copy() for name in self._names]
+        return [self.data[:, self._index[dof_id]].copy() for dof_id in self._ids]
 
-    def __contains__(self, name: PrefixedName) -> bool:
-        return name in self._index
+    def __contains__(self, dof_or_uuid: Union[DegreeOfFreedom, UUID]) -> bool:
+        dof_id = dof_or_uuid.id if isinstance(dof_or_uuid, DegreeOfFreedom) else dof_or_uuid
+        return dof_id in self._index
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}({{ "
             + ", ".join(
-                f"{n}: {list(self.data[:, i])}" for i, n in enumerate(self._names)
+                f"{n}: {list(self.data[:, i])}" for i, n in enumerate(self._ids)
             )
             + " })"
         )
 
     def to_position_dict(self) -> Dict[PrefixedName, float]:
-        return {joint_name: self[joint_name].position for joint_name in self._names}
+        return {self._world.get_degree_of_freedom_by_id(dof_id).name: self[dof_id].position for dof_id in self._ids}
 
     @property
     def positions(self) -> np.ndarray:
@@ -231,7 +237,7 @@ class WorldState(MutableMapping):
         """
         new_state = WorldState(_world=self._world)
         new_state.data = self.data.copy()
-        new_state._names = self._names.copy()
+        new_state._ids = self._ids.copy()
         new_state._index = self._index.copy()
         return new_state
 
@@ -250,7 +256,8 @@ class WorldState(MutableMapping):
         if upper is not None:
             initial_position = min(upper, initial_position)
 
-        self[dof.name].position = initial_position
+        self._add_dof(dof.id)
+        self[dof.id].position = initial_position
 
     def get_variables(self) -> List[cas.FloatVariable]:
         """
@@ -264,20 +271,20 @@ class WorldState(MutableMapping):
             accelerations, and jerks for each degree of freedom in the state.
         """
         positions = [
-            self._world.get_degree_of_freedom_by_name(v_name).variables.position
-            for v_name in self
+            self._world.get_degree_of_freedom_by_id(v_id).variables.position
+            for v_id in self
         ]
         velocities = [
-            self._world.get_degree_of_freedom_by_name(v_name).variables.velocity
-            for v_name in self
+            self._world.get_degree_of_freedom_by_id(v_id).variables.velocity
+            for v_id in self
         ]
         accelerations = [
-            self._world.get_degree_of_freedom_by_name(v_name).variables.acceleration
-            for v_name in self
+            self._world.get_degree_of_freedom_by_id(v_id).variables.acceleration
+            for v_id in self
         ]
         jerks = [
-            self._world.get_degree_of_freedom_by_name(v_name).variables.jerk
-            for v_name in self
+            self._world.get_degree_of_freedom_by_id(v_id).variables.jerk
+            for v_id in self
         ]
         return positions + velocities + accelerations + jerks
 
@@ -295,9 +302,11 @@ class WorldState(MutableMapping):
             applied.
         :return:
         """
-        assert len(commands) == len(
-            self._names
-        ), f"Commands length {len(commands)} does not match number of free variables {len(self._names)}."
+        if len(commands) != len(self._ids):
+            raise MismatchingCommandLengthError(
+                expected_length=len(self._ids),
+                actual_length=len(commands),
+            )
 
         self.set_derivative(derivative, commands)
 

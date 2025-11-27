@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from typing_extensions import Dict, Optional, TYPE_CHECKING, Self, ClassVar, Any
 
@@ -35,7 +36,7 @@ class KinematicStructureEntityKwargsTracker:
                 ...
     """
 
-    _kinematic_structure_entities: Dict[PrefixedName, KinematicStructureEntity] = field(
+    _kinematic_structure_entities: Dict[UUID, KinematicStructureEntity] = field(
         default_factory=dict
     )
     _world: Optional[World] = field(init=False, default=None)
@@ -88,19 +89,19 @@ class KinematicStructureEntityKwargsTracker:
         """
         Add a new kinematic structure entity to the tracker, to make it available for parsing in future from_json calls.
         """
-        self._kinematic_structure_entities[kinematic_structure_entity.name] = (
+        self._kinematic_structure_entities[kinematic_structure_entity.id] = (
             kinematic_structure_entity
         )
 
-    def has_kinematic_structure_entity(self, name: PrefixedName) -> bool:
+    def has_kinematic_structure_entity(self, id: UUID) -> bool:
         try:
-            self.get_kinematic_structure_entity(name)
+            self.get_kinematic_structure_entity(id)
             return True
         except KinematicStructureEntityNotInKwargs:
             return False
 
     def get_kinematic_structure_entity(
-        self, name: PrefixedName
+        self, id: UUID
     ) -> KinematicStructureEntity:
         """
         Retrieve a kinematic structure entity by its name.
@@ -109,16 +110,16 @@ class KinematicStructureEntityKwargsTracker:
         collection. If the entity is not found and a world object is available,
         it will try to retrieve the entity by its name from the world object.
 
-        :param name: The name of the kinematic structure entity to retrieve.
+        :param id: The UUID of the kinematic structure entity to retrieve.
         :return: The kinematic structure entity corresponding to the specified name,
                  or None if not found.
         """
-        kinematic_structure_entity = self._kinematic_structure_entities.get(name)
+        kinematic_structure_entity = self._kinematic_structure_entities.get(id)
         if kinematic_structure_entity is not None:
             return kinematic_structure_entity
         if self._world is not None:
             try:
-                return self._world.get_kinematic_structure_entity_by_name(name)
+                return self._world.get_kinematic_structure_entity_by_id(id)
             except WorldEntityNotFoundError:
                 pass
-        raise KinematicStructureEntityNotInKwargs(name)
+        raise KinematicStructureEntityNotInKwargs(id)

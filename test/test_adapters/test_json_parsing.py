@@ -205,7 +205,8 @@ def test_connection_json_serialization_with_world():
     json_data = c.to_json()
     tracker = KinematicStructureEntityKwargsTracker.from_world(world)
     c2 = FixedConnection.from_json(json_data, **tracker.create_kwargs())
-    assert c != c2
+    assert c == c2
+    assert c._world != c2._world
     assert c.parent.name == c2.parent.name
     assert c.child.name == c2.child.name
     assert np.allclose(
@@ -240,7 +241,8 @@ def test_transformation_matrix_json_serialization_with_world_in_kwargs():
     json_data = c.to_json()
     tracker = KinematicStructureEntityKwargsTracker.from_world(world)
     c2 = FixedConnection.from_json(json_data, **tracker.create_kwargs())
-    assert c != c2
+    assert c == c2
+    assert c._world != c2._world
     assert c.parent.name == c2.parent.name
     assert c.child.name == c2.child.name
     assert np.allclose(

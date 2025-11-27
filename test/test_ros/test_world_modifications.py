@@ -15,7 +15,7 @@ from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
     RevoluteConnection,
 )
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import Body, Actuator
 from semantic_digital_twin.world_description.world_modification import (
     WorldModelModificationBlock,
     AddKinematicStructureEntityModification,
@@ -52,7 +52,7 @@ class ConnectionModificationTestCase(unittest.TestCase):
             dof = DegreeOfFreedom(name=PrefixedName("dofyboi"))
             w.add_degree_of_freedom(dof)
             connection = RevoluteConnection(
-                b1, b2, axis=Vector3.from_iterable([0, 0, 1]), dof_name=dof.name
+                b1, b2, axis=Vector3.from_iterable([0, 0, 1]), dof_id=dof.id
             )
             w.add_connection(connection)
         assert connection.dof.has_hardware_interface is False
@@ -62,30 +62,30 @@ class ConnectionModificationTestCase(unittest.TestCase):
         assert connection.dof.has_hardware_interface is True
 
     def test_many_modifications(self):
-        w = World()
+        world = World()
 
-        with w.modify_world():
+        with world.modify_world():
             b1 = Body(name=PrefixedName("b1"))
             b2 = Body(name=PrefixedName("b2"))
             b3 = Body(name=PrefixedName("b3"))
-            w.add_kinematic_structure_entity(b1)
-            w.add_kinematic_structure_entity(b2)
-            w.add_kinematic_structure_entity(b3)
-            w.add_connection(
-                Connection6DoF.create_with_dofs(parent=b1, child=b2, world=w)
+            world.add_kinematic_structure_entity(b1)
+            world.add_kinematic_structure_entity(b2)
+            world.add_kinematic_structure_entity(b3)
+            world.add_connection(
+                Connection6DoF.create_with_dofs(parent=b1, child=b2, world=world)
             )
             dof = DegreeOfFreedom(name=PrefixedName("dofyboi"))
-            w.add_degree_of_freedom(dof)
-            w.add_connection(
+            world.add_degree_of_freedom(dof)
+            world.add_connection(
                 PrismaticConnection(
                     parent=b2,
                     child=b3,
                     axis=Vector3.from_iterable([0, 0, 1]),
-                    dof_name=dof.name,
+                    dof_id=dof.id,
                 )
             )
 
-        modifications = w.get_world_model_manager().model_modification_blocks[-1]
+        modifications = world.get_world_model_manager().model_modification_blocks[-1]
         self.assertEqual(len(modifications.modifications), 13)
 
         add_body_modifications = [
@@ -122,13 +122,13 @@ class ConnectionModificationTestCase(unittest.TestCase):
         self.assertEqual(len(w2.bodies), 3)
         self.assertEqual(len(w2.connections), 2)
 
-        with w.modify_world():
-            w.remove_connection(w.connections[-1])
-            w.remove_kinematic_structure_entity(
-                w.get_kinematic_structure_entity_by_name("b3")
+        with world.modify_world():
+            world.remove_connection(world.connections[-1])
+            world.remove_kinematic_structure_entity(
+                world.get_kinematic_structure_entity_by_name("b3")
             )
 
-        modifications = w.get_world_model_manager().model_modification_blocks[-1]
+        modifications = world.get_world_model_manager().model_modification_blocks[-1]
         self.assertEqual(len(modifications.modifications), 3)
 
         modifications_copy = WorldModelModificationBlock.from_json(
@@ -166,6 +166,65 @@ class ConnectionModificationTestCase(unittest.TestCase):
         self.assertNotIn(v1, w.semantic_annotations)
         self.assertNotIn(v2, w.semantic_annotations)
 
+    def test_duplicate_name_modification_serialization(self):
+        w = World()
+        with w.modify_world():
+            b1 = Body(name=PrefixedName("b1"))
+            w.add_kinematic_structure_entity(b1)
+
+            b2 = Body(name=PrefixedName("b1"))  # Duplicate name
+            w.add_kinematic_structure_entity(b2)
+
+            b3 = Body(name=PrefixedName("b3"))
+            w.add_kinematic_structure_entity(b3)
+
+            c1 = Connection6DoF.create_with_dofs(name=PrefixedName("name1"),parent=b1, child=b2, world=w)
+            w.add_connection(c1)
+            c2 = Connection6DoF.create_with_dofs(name=PrefixedName("name1"),parent=b1, child=b3, world=w)
+            w.add_connection(c2)
+
+
+        modifications = w.get_world_model_manager().model_modification_blocks[-1]
+        tracker = KinematicStructureEntityKwargsTracker()
+        kwargs = tracker.create_kwargs()
+
+        modifications_copy = WorldModelModificationBlock.from_json(
+            modifications.to_json(), **kwargs
+        )
+
+        w2 = World()
+        with w2.modify_world():
+            modifications_copy.apply(w2)
+        self.assertEqual(len(w2.bodies), 3)
+        self.assertEqual(len(w2.connections), 2)
+
+    def test_actuator_serialization(self):
+        w = World()
+        with w.modify_world():
+            b1 = Body(name=PrefixedName("b1"))
+            w.add_kinematic_structure_entity(b1)
+            b2 = Body(name=PrefixedName("b2"))
+            w.add_kinematic_structure_entity(b2)
+            c = Connection6DoF.create_with_dofs(parent=b1, child=b2, world=w)
+            w.add_connection(c)
+            dof = w.degrees_of_freedom[0]
+            actuator = Actuator(name=PrefixedName("actuator"))
+            actuator.add_dof(dof)
+            w.add_actuator(actuator)
+
+        modifications = w.get_world_model_manager().model_modification_blocks[-1]
+        tracker = KinematicStructureEntityKwargsTracker()
+        kwargs = tracker.create_kwargs()
+
+        modifications_copy = WorldModelModificationBlock.from_json(
+            modifications.to_json(), **kwargs
+        )
+        w2 = World()
+        with w2.modify_world():
+            modifications_copy.apply(w2)
+
+        self.assertEqual(len(w2.actuators), 1)
+        self.assertEqual(w2.actuators[0].id, actuator.id)
 
 if __name__ == "__main__":
     unittest.main()

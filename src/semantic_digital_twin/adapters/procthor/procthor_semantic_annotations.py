@@ -162,7 +162,7 @@ class Plate(HasBody, HasSupportingSurface):
 
 
 @dataclass(eq=False)
-class Bowl(HasBody, HasSupportingSurface, IsPerceivable):
+class Bowl(HasBody, IsPerceivable, HasSupportingSurface):
     """
     A bowl.
     """

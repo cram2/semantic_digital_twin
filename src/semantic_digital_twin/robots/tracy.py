@@ -138,7 +138,7 @@ class Tracy(AbstractRobot, SpecifiesLeftRightArm, HasNeck):
             )
 
             robot.add_kinematic_chain(neck)
-            world.add_semantic_annotation(robot, skip_duplicates=True)
+            world.add_semantic_annotation(robot)
 
             vel_limits = defaultdict(lambda: 0.2)
             robot.tighten_dof_velocity_limits_of_1dof_connections(new_limits=vel_limits)

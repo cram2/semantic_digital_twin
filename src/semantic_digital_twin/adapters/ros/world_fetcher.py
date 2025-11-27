@@ -85,7 +85,7 @@ class FetchWorldServer:
         {
             "modifications": [ ... ],
             "state": {
-                "prefixed_names": [ PrefixedNameJson, ... ],
+                "ids": [ UUIDJson, ... ],
                 "states": [ float, ... ]
             }
         }
@@ -98,7 +98,7 @@ class FetchWorldServer:
             modifications=list(
                 self.world.get_world_model_manager().model_modification_blocks
             ),
-            prefixed_names=list(self.world.state.keys()),
+            ids=list(self.world.state.keys()),
             states=list(self.world.state.positions),
         )
 
@@ -175,8 +175,8 @@ def fetch_world_from_service(
         modification_block.apply(world)
 
     # Apply latest state snapshot after all modification blocks
-    if snapshot.prefixed_names and snapshot.states:
-        indices = [world.state._index.get(n) for n in snapshot.prefixed_names]
+    if snapshot.ids and snapshot.states:
+        indices = [world.state._index.get(_id) for _id in snapshot.ids]
         assign_pairs = [
             (i, float(s)) for i, s in zip(indices, snapshot.states) if i is not None
         ]
