@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Set, Iterable, Optional
+from typing import Iterable, Optional
 
 import numpy as np
 from krrood.entity_query_language.entity import an, entity, let
@@ -16,6 +16,7 @@ from .mixins import (
     HasDrawers,
     HasDoors,
 )
+from ..adapters.procthor.procthor_semantic_annotations import Food
 from ..datastructures.variables import SpatialVariables
 from ..reasoning.predicates import InsideOf
 from ..spatial_types import Point3
@@ -158,3 +159,44 @@ class Wall(SemanticAnnotation):
         door = let(Door, self._world.semantic_annotations)
         query = an(entity(door), InsideOf(self.body, door.entry_way.region)() > 0.1)
         return query.evaluate()
+
+
+############################### subclasses to IsPerceivable
+@dataclass(eq=False)
+class Candy(Food, IsPerceivable):
+    """
+    A semantic annotation that represents candy.
+    """
+    ...
+
+
+@dataclass(eq=False)
+class Milk(Container, IsPerceivable):
+    """
+    A semantic annotation that represents a container of milk.
+    """
+    ...
+
+
+@dataclass(eq=False)
+class Salt(Container, IsPerceivable):
+    """
+    A semantic annotation that represents a container of salt.
+    """
+    ...
+
+
+@dataclass(eq=False)
+class Cereal(Container, IsPerceivable):
+    """
+    A semantic annotation that represents a container of cereal.
+    """
+    ...
+
+
+@dataclass(eq=False)
+class Noodles(Container, IsPerceivable, ):
+    """
+    A semantic annotation that represents a container of noodles.
+    """
+    ...
