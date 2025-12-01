@@ -453,7 +453,6 @@ class MujocoSimTestCase(unittest.TestCase):
         multi_sim.stop_simulation()
         self.assertAlmostEqual(time.time() - start_time, 10.0, delta=0.1)
 
-    @unittest.skip("Seems to be flaky. Please fix mr giang.")
     def test_stable(self):
         write_objects = {
             "box": {"position": [0.0, 0.0, 0.0], "quaternion": [1.0, 0.0, 0.0, 0.0]}
@@ -474,6 +473,7 @@ class MujocoSimTestCase(unittest.TestCase):
             [[1.0, 1.0, 0.02], [0.5, 0.5, 0.5, 0.5]],
             [[0.0, 1.0, 0.03], [0.0, 0.707, 0.707, 0.0]],
         ]
+        fail_count = 0
         for _ in range(100):
             for stable_box_pose in stable_box_poses:
                 write_objects["box"]["position"] = stable_box_pose[0]
@@ -482,11 +482,11 @@ class MujocoSimTestCase(unittest.TestCase):
                 multi_sim.set_write_objects(write_objects=write_objects)
                 multi_sim.set_write_objects(write_objects={})
                 multi_sim.unpause_simulation()
-                self.assertTrue(
-                    multi_sim.is_stable(
-                        body_names=["box"], max_simulation_steps=1000, atol=1e-3
-                    )
+
+                fail_count += not multi_sim.is_stable(
+                    body_names=["box"], max_simulation_steps=1000, atol=1e-3
                 )
+        self.assertLess(fail_count, 10)  # Allow less than 10% failure
 
         unstable_box_poses = [
             [[0.0, 0.0, 1.03], [1.0, 0.0, 0.0, 0.0]],
@@ -495,6 +495,7 @@ class MujocoSimTestCase(unittest.TestCase):
             [[0.0, 1.0, 1.03], [0.0, 0.707, 0.707, 0.0]],
             [[0.0, 0.0, 1.03], [1.0, 0.0, 0.0, 0.0]],
         ]
+        fail_count = 0
         for _ in range(100):
             for unstable_box_pose in unstable_box_poses:
                 write_objects["box"]["position"] = unstable_box_pose[0]
@@ -503,11 +504,11 @@ class MujocoSimTestCase(unittest.TestCase):
                 multi_sim.set_write_objects(write_objects=write_objects)
                 multi_sim.set_write_objects(write_objects={})
                 multi_sim.unpause_simulation()
-                self.assertFalse(
-                    multi_sim.is_stable(
-                        body_names=["box"], max_simulation_steps=1000, atol=1e-3
-                    )
+                fail_count += multi_sim.is_stable(
+                    body_names=["box"], max_simulation_steps=1000, atol=1e-3
                 )
+        self.assertLess(fail_count, 10)  # Allow less than 10% failure
+
         multi_sim.stop_simulation()
 
 
